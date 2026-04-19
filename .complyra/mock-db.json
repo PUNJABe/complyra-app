@@ -1,0 +1,39 @@
+{
+  "workspaceName": "Complyra Demo Org",
+  "departments": [
+    "Marketing",
+    "Operations",
+    "Product",
+    "Finance"
+  ],
+  "transactions": [],
+  "policyRules": [
+    {
+      "id": "r1",
+      "name": "High Value Approval",
+      "condition": "If amount > Rs 12,000",
+      "action": "Require manager + finance approval",
+      "source": "manual"
+    },
+    {
+      "id": "r2",
+      "name": "After-hours Alcohol",
+      "condition": "If category is alcohol and time is after 8 PM",
+      "action": "Auto-flag as high severity",
+      "source": "manual"
+    },
+    {
+      "id": "r3",
+      "name": "Duplicate Vendor Window",
+      "condition": "If same merchant + same amount appears in 24h",
+      "action": "Create fraud investigation cluster",
+      "source": "manual"
+    }
+  ],
+  "integrationAlerts": [],
+  "integrationJobs": [],
+  "integrationReceipts": [],
+  "deadLetters": [],
+  "createdAt": "2026-04-18T10:53:24.050Z",
+  "updatedAt": "2026-04-18T10:53:24.080Z"
+}

@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #f6f3ee;
+  --ink: #182230;
+  --accent: #b58e63;
+  --highlight: #5f788e;
+}
+:root {
+  --canvas: #f6f3ee;
+  --ink: #182230;
+  --accent: #b58e63;
+  --highlight: #5f788e;
+}
+
+.dark {
+  --canvas: #1a1a1f;
+  --ink: #e8e8ed;
+  --accent: #c9a574;
+  --highlight: #7a8fa8;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-accent: var(--accent);
+  --color-highlight: var(--highlight);
+  --font-sans: var(--font-space-grotesk);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+@keyframes rise {
+  from {
+    transform: scaleY(0.35);
+    transform-origin: bottom;
+    opacity: 0.35;
+  }
+  to {
+    transform: scaleY(1);
+    transform-origin: bottom;
+    opacity: 1;
+  }
+}
+
+.animate-rise {
+  animation: rise 720ms ease-out both;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at 8% 12%, rgba(181, 142, 99, 0.18), transparent 30%),
+    radial-gradient(circle at 92% 28%, rgba(95, 120, 142, 0.14), transparent 26%),
+    var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+}
