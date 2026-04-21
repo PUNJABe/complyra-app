@@ -1,5 +1,7 @@
 "use client";
 
+import { useFormatMoney } from "@/lib/use-format-money";
+
 interface Optimization {
   id: string;
   title: string;
@@ -18,13 +20,14 @@ interface CostOptimizationWidgetProps {
 export function CostOptimizationWidget({ optimizations }: CostOptimizationWidgetProps) {
   const totalSavings = optimizations.reduce((sum, o) => sum + o.potentialSavings, 0);
   const highPriority = optimizations.filter((o) => o.priority === "high");
+  const formatMoney = useFormatMoney();
 
   return (
     <div className="rounded-2xl border border-ink/10 bg-white/80 p-5">
       <div className="mb-4">
         <h2 className="text-lg font-semibold">💰 Cost Optimization Opportunities</h2>
         <p className="text-sm text-ink/65 mt-1">
-          Potential monthly savings: <span className="font-bold text-green-600">${totalSavings.toLocaleString()}</span>
+          Potential monthly savings: <span className="font-bold text-green-600">{formatMoney(totalSavings)}</span>
         </p>
       </div>
 
@@ -56,9 +59,9 @@ export function CostOptimizationWidget({ optimizations }: CostOptimizationWidget
                 </div>
 
                 <div className="text-right flex-shrink-0">
-                  <p className="text-2xl font-bold text-green-600">${opt.potentialSavings.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-green-600">{formatMoney(opt.potentialSavings)}</p>
                   <p className="text-xs text-green-600">{opt.savingsPercentage}% less</p>
-                  <p className="text-xs text-ink/60 mt-1">from ${opt.currentSpend.toLocaleString()}</p>
+                  <p className="text-xs text-ink/60 mt-1">from {formatMoney(opt.currentSpend)}</p>
                 </div>
               </div>
             </div>
@@ -72,7 +75,7 @@ export function CostOptimizationWidget({ optimizations }: CostOptimizationWidget
             🎯 Quick Win: {highPriority[0].title}
           </p>
           <p className="text-xs text-green-800 mt-1">
-            Could save ${highPriority[0].potentialSavings.toLocaleString()} per month
+            Could save {formatMoney(highPriority[0].potentialSavings)} per month
           </p>
         </div>
       )}

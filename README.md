@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Complyra
 
-## Getting Started
+Complyra is an intelligent compliance and finance operations workspace built with Next.js. It combines onboarding, policy controls, transaction analysis, investigations, and AI-assisted insights into a single dashboard for modern finance teams.
 
-First, run the development server:
+## What this app does
+
+- Shows a polished landing page with entry points into login and onboarding.
+- Provides a dashboard for compliance KPIs, charts, recent flags, and AI recommendations.
+- Includes dedicated experiences for chat, copilot, insights, integrations, investigator, policy, and policy builder workflows.
+- Exposes API routes for auth, onboarding, overview, policy rules, chat, copilot, integrations, and investigations.
+- Supports mock auth for local development and optional Supabase auth for real sessions.
+
+## Tech stack
+
+- Next.js 16 app router
+- React 19
+- Tailwind CSS v4
+- Supabase client for optional auth
+- XLSX helpers for data import and export workflows
+
+## Getting started
+
+1. Install dependencies.
+
+```bash
+npm install
+```
+
+2. Create your environment file from `.env.example` and fill in the values you need.
+
+3. Start the dev server.
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app uses mock auth by default and can be switched to Supabase if configured.
 
-## Learn More
+- `MOCK_AUTH_EMAIL` and `MOCK_AUTH_PASSWORD` control local demo login credentials.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` enable Supabase auth.
+- `COMPLYRA_STORAGE_MODE` selects `json` or `sqlite` storage.
+- `SLACK_WEBHOOK_URL` enables Slack delivery.
+- `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, and `WHATSAPP_TO_NUMBER` enable WhatsApp delivery.
 
-To learn more about Next.js, take a look at the following resources:
+## Key routes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `/` landing page
+- `/auth/login` login page
+- `/onboarding` onboarding flow
+- `/dashboard` executive overview
+- `/dashboard/chat` chat workspace
+- `/dashboard/copilot` AI copilot
+- `/dashboard/insights` analytics and findings
+- `/dashboard/integrations` connected systems
+- `/dashboard/investigator` investigation workspace
+- `/dashboard/policy` policy management
+- `/dashboard/policy-builder` policy authoring
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Repo layout
 
-## Deploy on Vercel
+- `src/app` application routes, layouts, and API handlers
+- `src/components/app` dashboard UI components and widgets
+- `src/lib` business logic, storage, analytics, auth, and formatting helpers
+- `public` static assets
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The repository also includes `.complyra/mock-db.json` for local mock data. If you are searching the repo, this README now reflects the real product instead of the default Next.js starter text.

@@ -16,7 +16,11 @@ const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined
 const DEFAULT_RATE = 83; // Fallback rate
 
 export function CurrencyProvider({ children }: { children: ReactNode }) {
-  const [currency, setCurrencyState] = useState<CurrencyType>("USD");
+  const [currency, setCurrencyState] = useState<CurrencyType>(() => {
+    if (typeof window === "undefined") return "USD";
+    const saved = localStorage.getItem("preferred-currency");
+    return saved === "INR" || saved === "USD" ? saved : "USD";
+  });
   const [exchangeRate, setExchangeRate] = useState(DEFAULT_RATE);
   const [loading, setLoading] = useState(true);
 
@@ -38,16 +42,6 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     };
 
     fetchRate();
-  }, []);
-
-  // Load currency preference from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("preferred-currency");
-    if (saved === "INR" || saved === "USD") {
-      setCurrencyState(saved);
-    } else {
-      setLoading(false);
-    }
   }, []);
 
   const setCurrency = (newCurrency: CurrencyType) => {

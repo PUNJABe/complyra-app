@@ -24,8 +24,13 @@ export type CopilotRecommendation = {
   insight: string;
   recommendation: string;
   action: string;
-  savingsImpact: string;
+  savingsImpact: number;
   confidence: number;
+  explainability?: {
+    why: string;
+    evidence: string;
+    baseline: string;
+  };
 };
 
 export type Explainability = {
@@ -43,6 +48,38 @@ export type FraudCluster = {
   merchants: string[];
   pattern: string;
   totalAmount: number;
+};
+
+export type AutoInvestigationCase = {
+  id: string;
+  title: string;
+  source: string;
+  reason: string;
+  riskScore: number;
+  status: "open" | "triaged" | "monitoring";
+  owner: string;
+  createdAt: string;
+};
+
+export type ForecastSnapshot = {
+  nextMonthSpend: number;
+  changePct: number;
+  confidence: number;
+  scenario: string;
+  drivers: Array<{
+    label: string;
+    impactPct: number;
+    evidence: string;
+  }>;
+};
+
+export type PolicyTemplate = {
+  id: string;
+  industry: "Startup" | "Enterprise" | "Healthcare";
+  name: string;
+  description: string;
+  focus: string[];
+  rules: string[];
 };
 
 export type PairAnomalyScore = {
@@ -133,6 +170,7 @@ export type OverviewPayload = {
     source: string;
   };
   copilotRecommendations: CopilotRecommendation[];
+  forecast: ForecastSnapshot;
 };
 
 export type PolicyPayload = {
@@ -151,6 +189,7 @@ export type PolicyPayload = {
     amount: number;
     explainability: Explainability;
   }>;
+  templates: PolicyTemplate[];
 };
 
 export type CopilotPayload = {
@@ -162,6 +201,7 @@ export type InvestigationPayload = {
   clusters: FraudCluster[];
   graph: SpendGraph;
   anomalies: PairAnomalyScore[];
+  cases: AutoInvestigationCase[];
 };
 
 export type PolicyRule = {
@@ -193,6 +233,68 @@ export type IntegrationsPayload = {
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+};
+
+export type WorkspaceMode = "business" | "personal";
+
+export type UserRole = "admin" | "ca" | "employee" | "viewer";
+
+export type ClientProfile = {
+  id: string;
+  name: string;
+  gstin?: string;
+  pan?: string;
+  sector?: string;
+};
+
+export type FilingDeadline = {
+  id: string;
+  kind: "GST" | "ITR" | "TDS";
+  dueDate: string;
+  clientId?: string;
+  status: "pending" | "completed" | "overdue";
+};
+
+export type AuditTrailEntry = {
+  id: string;
+  action: string;
+  actor: string;
+  details: string;
+  createdAt: string;
+  resource?: string;
+  ip?: string;
+  userAgent?: string;
+  severity?: "info" | "warning";
+};
+
+export type WorkspaceContextPayload = {
+  workspaceName: string;
+  mode: WorkspaceMode;
+  clients: ClientProfile[];
+  activeClientId: string | null;
+  deadlines: FilingDeadline[];
+  auditTrail: AuditTrailEntry[];
+};
+
+export type ComplianceRiskFinding = {
+  id: string;
+  kind: "missing-invoice" | "gst-mismatch" | "duplicate-expense" | "suspicious-vendor";
+  severity: "high" | "medium" | "low";
+  merchant: string;
+  amount: number;
+  reason: string;
+  evidence: string;
+};
+
+export type ComplianceCheckPayload = {
+  summary: {
+    totalChecked: number;
+    riskyCount: number;
+    missingInvoices: number;
+    gstMismatches: number;
+    suspiciousEntries: number;
+  };
+  topRisks: ComplianceRiskFinding[];
 };
 
 export type ChatResponse = {

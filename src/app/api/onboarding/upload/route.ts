@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
-import { appendTransactions, type StoredTransaction } from "@/lib/storage";
+import { AUTH_COOKIE, decodeSession } from "@/lib/auth";
+import { addAuditTrailEntry, appendTransactions, type StoredTransaction } from "@/lib/storage";
 
 function parseNumber(value: unknown): number {
   if (typeof value === "number") return value;
@@ -76,13 +77,44 @@ export async function POST(request: Request) {
   }
 
   const fileName = file.name.toLowerCase();
-  const isSupported = fileName.endsWith(".csv") || fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
+  const isSheet = fileName.endsWith(".csv") || fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
+  const isPdf = fileName.endsWith(".pdf");
+  const isSupported = isSheet || isPdf;
 
   if (!isSupported) {
     return NextResponse.json(
       { error: "Unsupported file. Upload CSV or XLSX." },
       { status: 400 }
     );
+  }
+
+  if (isPdf) {
+    const cookieHeader = request.headers.get("cookie") ?? "";
+    const sessionToken = cookieHeader
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(`${AUTH_COOKIE}=`))
+      ?.split("=")
+      .slice(1)
+      .join("=");
+    const session = decodeSession(sessionToken ?? null);
+
+    await addAuditTrailEntry({
+      action: "upload_pdf_received",
+      actor: session?.email ?? "user",
+      details: `Uploaded PDF ${file.name} for secure analysis staging.`,
+      resource: "upload",
+      severity: "info",
+      ip: request.headers.get("x-forwarded-for") ?? "unknown",
+      userAgent: request.headers.get("user-agent") ?? "unknown",
+    });
+
+    return NextResponse.json({
+      ok: true,
+      importedRows: 0,
+      totalStored: 0,
+      message: `PDF ${file.name} uploaded securely. Parsing support can be enabled as next step.`,
+    });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -117,6 +149,26 @@ export async function POST(request: Request) {
   }
 
   const totalStored = await appendTransactions(transactions);
+
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  const sessionToken = cookieHeader
+    .split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith(`${AUTH_COOKIE}=`))
+    ?.split("=")
+    .slice(1)
+    .join("=");
+  const session = decodeSession(sessionToken ?? null);
+
+  await addAuditTrailEntry({
+    action: "upload_processed",
+    actor: session?.email ?? "user",
+    details: `Uploaded ${file.name} with ${transactions.length} parsed rows.`,
+    resource: "upload",
+    severity: "info",
+    ip: request.headers.get("x-forwarded-for") ?? "unknown",
+    userAgent: request.headers.get("user-agent") ?? "unknown",
+  });
 
   return NextResponse.json({
     ok: true,

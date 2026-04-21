@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 
 type Provider = "mock" | "supabase";
 
@@ -45,20 +46,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-4xl items-center px-6 py-12 md:px-10">
+    <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col items-center justify-center px-6 py-12 md:px-10">
+      {/* Theme Toggle */}
+      <div className="absolute right-6 top-6">
+        <ThemeToggle />
+      </div>
+
       <div className="grid w-full gap-6 rounded-[2rem] border border-ink/10 bg-white/86 p-6 shadow-[0_24px_60px_-44px_rgba(17,24,39,0.45)] backdrop-blur-md md:grid-cols-[1.05fr_0.95fr] md:p-8">
         <section className="space-y-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/55">Complyra Access</p>
           <h1 className="text-3xl font-semibold tracking-tight">Sign in to your workspace</h1>
           <p className="text-sm leading-relaxed text-ink/70">
-            Intelligent compliance system access. Start with mock credentials for local development, then switch to Supabase provider for real authentication.
+            Intelligent compliance system access. Start with Individual access for local development, then switch to Company access for real authentication.
           </p>
-
-          <div className="rounded-2xl border border-ink/10 bg-canvas/65 p-4 text-sm">
-            <p className="font-semibold text-ink/80">Mock login defaults</p>
-            <p className="mt-1 text-ink/65">Email: demo@complyra.local</p>
-            <p className="text-ink/65">Password: complyra123</p>
-          </div>
         </section>
 
         <form className="space-y-4" onSubmit={onSubmit}>
@@ -68,14 +68,14 @@ export default function LoginPage() {
               onClick={() => setProvider("mock")}
               className={`rounded-full px-3 py-1.5 transition ${provider === "mock" ? "bg-ink text-canvas" : "text-ink/70"}`}
             >
-              Mock Provider
+              Individual
             </button>
             <button
               type="button"
               onClick={() => setProvider("supabase")}
               className={`rounded-full px-3 py-1.5 transition ${provider === "supabase" ? "bg-ink text-canvas" : "text-ink/70"}`}
             >
-              Supabase Provider
+              Company
             </button>
           </div>
 

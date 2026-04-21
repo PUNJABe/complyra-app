@@ -98,6 +98,28 @@ export default function DashboardPolicyPage() {
           </table>
         </div>
       </section>
+
+      <section className="rounded-2xl border border-ink/10 bg-white/82 p-5">
+        <h2 className="text-lg font-semibold">Industry Templates</h2>
+        <p className="mt-1 text-sm text-ink/65">Pre-built policies for common operating models, ready to adapt in the builder.</p>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {data.templates.map((template) => (
+            <article key={template.id} className="rounded-2xl border border-ink/10 bg-canvas/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">{template.industry}</p>
+              <h3 className="mt-2 text-base font-semibold">{template.name}</h3>
+              <p className="mt-2 text-sm text-ink/70">{template.description}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {template.focus.map((item) => (
+                  <span key={item} className="rounded-full border border-ink/15 bg-white px-2.5 py-1 text-xs text-ink/65">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }

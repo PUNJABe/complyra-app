@@ -3,12 +3,16 @@ import { processDueDeliveryJobs } from "@/lib/integration-delivery";
 import { getDeadLetters, getIntegrationAlerts, getIntegrationJobs, getIntegrationReceipts, readStore } from "@/lib/storage";
 import type { CurrencyType } from "@/lib/currency-context";
 import type {
+  AutoInvestigationCase,
+  ComplianceCheckPayload,
   CopilotPayload,
   DonutChartData,
   IntegrationsPayload,
   InvestigationPayload,
+  ForecastSnapshot,
   LineChartData,
   OverviewPayload,
+  PolicyTemplate,
   PolicyPayload,
   StackedBarData,
 } from "@/lib/types";
@@ -138,6 +142,72 @@ function stackedFromTransactions(
   };
 }
 
+function forecastFromTransactions(transactions: Array<{ date: string; amount: number; category?: string }>): ForecastSnapshot {
+  if (!transactions.length) {
+    return {
+      nextMonthSpend: 103500,
+      changePct: 12,
+      confidence: 84,
+      scenario: "Most likely scenario based on current run-rate and repeated vendor spikes.",
+      drivers: [
+        {
+          label: "Travel",
+          impactPct: 5,
+          evidence: "Bookings are trending above the seasonal baseline.",
+        },
+        {
+          label: "Software renewals",
+          impactPct: 4,
+          evidence: "Renewals cluster inside a narrow billing window.",
+        },
+        {
+          label: "Contractors",
+          impactPct: 3,
+          evidence: "Repeated invoice patterns indicate scope creep.",
+        },
+      ],
+    };
+  }
+
+  const total = transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const average = total / Math.max(transactions.length, 1);
+  const highFrequencyCategories = new Map<string, number>();
+
+  for (const transaction of transactions) {
+    const category = transaction.category || "General";
+    highFrequencyCategories.set(category, (highFrequencyCategories.get(category) ?? 0) + transaction.amount);
+  }
+
+  const drivers = [...highFrequencyCategories.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([label, value], index) => ({
+      label,
+      impactPct: Math.max(1, Math.round((value / Math.max(total, 1)) * 100)),
+      evidence: index === 0 ? "This category is leading the run-rate change." : "This category is contributing to forecast pressure.",
+    }));
+
+  return {
+    nextMonthSpend: Math.round(average * 1.12 * Math.min(1.45, 1 + drivers.reduce((sum, driver) => sum + driver.impactPct, 0) / 1000)),
+    changePct: Math.max(3, Math.round((average / Math.max(total / 8, 1) - 1) * 100)) || 9,
+    confidence: Math.min(95, 72 + Math.min(18, transactions.length)),
+    scenario: "Run-rate forecast using trailing averages and category concentration.",
+    drivers: drivers.length
+      ? drivers
+      : [
+          {
+            label: "Mixed spend",
+            impactPct: 4,
+            evidence: "No dominant category emerged, so the model used the aggregate run-rate.",
+          },
+        ],
+  };
+}
+
+function policyTemplates(): PolicyTemplate[] {
+  return policyData.templates;
+}
+
 export async function getOverviewPayload(): Promise<OverviewPayload> {
   const store = await readStore();
   const transactions = store.transactions;
@@ -197,6 +267,7 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
         source: "Seeded mock data",
       },
       copilotRecommendations: overviewData.copilotRecommendations,
+      forecast: forecastFromTransactions(transactions),
     };
   }
 
@@ -251,7 +322,7 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
         insight: "Top discretionary vendors account for disproportionate growth in uploaded data.",
         recommendation: "Apply budget caps to meals + mobility categories for high-frequency claimants.",
         action: "Publish Smart Cap policy and push alerts to channel owners.",
-        savingsImpact: formatMoney(Math.round(total * 0.18)),
+        savingsImpact: Math.round(total * 0.18),
         confidence: 86,
       },
       {
@@ -259,10 +330,11 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
         insight: `There are ${highSeverity + mediumSeverity} transactions likely needing policy review.`,
         recommendation: "Auto-route medium/high risk claims to manager queue with explainability summary.",
         action: "Enable risk-based routing in no-code policy builder.",
-        savingsImpact: formatMoney(Math.round(total * 0.08)),
+        savingsImpact: Math.round(total * 0.08),
         confidence: 82,
       },
     ],
+    forecast: forecastFromTransactions(transactions),
   };
 }
 
@@ -306,6 +378,7 @@ export async function getPolicyPayload(): Promise<PolicyPayload> {
       exposure: findings.reduce((sum, finding) => sum + finding.amount, 0),
     },
     findings,
+    templates: policyTemplates(),
   };
 }
 
@@ -420,6 +493,20 @@ export async function getInvestigationPayload(): Promise<InvestigationPayload> {
     .sort((a, b) => b.riskScore - a.riskScore)
     .slice(0, 4);
 
+  const cases: AutoInvestigationCase[] = [...anomalies]
+    .filter((item) => item.anomalyScore >= 80)
+    .slice(0, 5)
+    .map((item, index) => ({
+      id: `auto-case-${index + 1}`,
+      title: `Auto-created case: ${item.employee} / ${item.merchant}`,
+      source: item.anomalyScore >= 90 ? "Explainable AI" : "Anomaly detector",
+      reason: `Spend moved ${item.trendDeltaPct}% above baseline with z-score ${item.zScore}.`,
+      riskScore: item.anomalyScore,
+      status: item.anomalyScore >= 90 ? "open" : "triaged",
+      owner: item.employee,
+      createdAt: new Date().toISOString(),
+    }));
+
   const nodes: InvestigationPayload["graph"]["nodes"] = [];
   const edges: InvestigationPayload["graph"]["edges"] = [];
 
@@ -453,12 +540,14 @@ export async function getInvestigationPayload(): Promise<InvestigationPayload> {
       edges: edges.length ? edges : investigationData.graph.edges,
     },
     anomalies: anomalies.length ? anomalies : investigationData.anomalies,
+    cases: cases.length ? cases : investigationData.cases,
   };
 }
 
 export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
   await processDueDeliveryJobs();
 
+  const store = await readStore();
   const alerts = await getIntegrationAlerts();
   const jobs = await getIntegrationJobs();
   const receipts = await getIntegrationReceipts();
@@ -468,6 +557,24 @@ export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
   const whatsappToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const whatsappPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const whatsappTo = process.env.WHATSAPP_TO_NUMBER;
+
+  const deadlineAlerts = store.deadlines
+    .filter((deadline) => deadline.status === "overdue")
+    .map((deadline, index) => ({
+      id: `deadline-alert-${index + 1}`,
+      channel: "slack" as const,
+      title: `${deadline.kind} filing overdue`,
+      message: `${deadline.kind} filing deadline missed (${deadline.dueDate}).`,
+      timestamp: new Date().toISOString(),
+    }));
+
+  const policyAlerts = store.transactions.slice(0, 2).map((item, index) => ({
+    id: `policy-alert-${index + 1}`,
+    channel: "whatsapp" as const,
+    title: "Expense policy breach",
+    message: `${item.merchant} (${formatMoney(item.amount)}) may violate configured policy thresholds.`,
+    timestamp: new Date().toISOString(),
+  }));
 
   return {
     channels: [
@@ -482,7 +589,7 @@ export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
         target: whatsappTo ?? integrationsData.channels.find((c) => c.kind === "whatsapp")?.target ?? "+91-00000-00000",
       },
     ],
-    alerts: alerts.length ? alerts : integrationsData.alerts,
+    alerts: [...deadlineAlerts, ...policyAlerts, ...(alerts.length ? alerts : integrationsData.alerts)].slice(0, 20),
     queue: {
       queued: jobs.filter((job) => job.status === "queued").length,
       retrying: jobs.filter((job) => job.status === "retrying").length,
@@ -492,5 +599,95 @@ export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
     recentJobs: jobs.slice(0, 10),
     recentReceipts: receipts.slice(0, 12),
     deadLetters: deadLetters.slice(0, 12),
+  };
+}
+
+export async function getComplianceCheckPayload(): Promise<ComplianceCheckPayload> {
+  const store = await readStore();
+  const transactions = store.transactions.slice(0, 400);
+
+  if (!transactions.length) {
+    return {
+      summary: {
+        totalChecked: 0,
+        riskyCount: 0,
+        missingInvoices: 0,
+        gstMismatches: 0,
+        suspiciousEntries: 0,
+      },
+      topRisks: [],
+    };
+  }
+
+  const duplicateMap = new Map<string, number>();
+  for (const item of transactions) {
+    const key = `${item.merchant.toLowerCase()}|${item.amount.toFixed(0)}|${item.date}`;
+    duplicateMap.set(key, (duplicateMap.get(key) ?? 0) + 1);
+  }
+
+  const findings = transactions.map((item, index) => {
+    const duplicateKey = `${item.merchant.toLowerCase()}|${item.amount.toFixed(0)}|${item.date}`;
+    const duplicateCount = duplicateMap.get(duplicateKey) ?? 0;
+    const missingInvoice = item.merchant.toLowerCase().includes("unknown") || item.category.toLowerCase() === "general";
+    const gstMismatch = item.amount > 2000 && item.category.toLowerCase().includes("travel");
+    const suspiciousVendor = /(cash|misc|temp|unknown)/i.test(item.merchant);
+
+    let kind: ComplianceCheckPayload["topRisks"][number]["kind"] = "missing-invoice";
+    let severity: "high" | "medium" | "low" = "low";
+    let reason = "General compliance review recommended.";
+    let evidence = `${item.merchant} on ${item.date} for ${formatMoney(item.amount)}.`;
+
+    if (duplicateCount > 1) {
+      kind = "duplicate-expense";
+      severity = "high";
+      reason = "Duplicate expense pattern detected in upload.";
+      evidence = `${duplicateCount} entries share merchant, amount, and date signature.`;
+    } else if (gstMismatch) {
+      kind = "gst-mismatch";
+      severity = "high";
+      reason = "GST-sensitive transaction appears to have mismatch risk.";
+      evidence = "High-value travel expense should include matching GST invoice evidence.";
+    } else if (suspiciousVendor) {
+      kind = "suspicious-vendor";
+      severity = "medium";
+      reason = "Vendor label pattern is commonly associated with weak invoice trails.";
+      evidence = "Vendor naming convention matched suspicious pattern set.";
+    } else if (missingInvoice) {
+      kind = "missing-invoice";
+      severity = "medium";
+      reason = "Potential missing invoice or weak classification.";
+      evidence = "Category or merchant metadata is incomplete for CA audit readiness.";
+    }
+
+    return {
+      id: `cc-${index + 1}`,
+      kind,
+      severity,
+      merchant: item.merchant,
+      amount: item.amount,
+      reason,
+      evidence,
+      score: severity === "high" ? 90 : severity === "medium" ? 68 : 40,
+    };
+  });
+
+  const topRisks = findings
+    .filter((item) => item.score >= 60)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10)
+    .map(({ score, ...rest }) => {
+      void score;
+      return rest;
+    });
+
+  return {
+    summary: {
+      totalChecked: transactions.length,
+      riskyCount: topRisks.length,
+      missingInvoices: topRisks.filter((item) => item.kind === "missing-invoice").length,
+      gstMismatches: topRisks.filter((item) => item.kind === "gst-mismatch").length,
+      suspiciousEntries: topRisks.filter((item) => item.kind === "duplicate-expense" || item.kind === "suspicious-vendor").length,
+    },
+    topRisks,
   };
 }

@@ -32,6 +32,7 @@ export function AnomalyExplainer({ merchantName, amount, reason, severity, facto
       {expanded && (
         <div className="rounded-lg border border-ink/15 bg-white/50 p-4 text-sm space-y-3">
           <div>
+            <p className="text-xs text-ink/60">{merchantName} • ${amount.toFixed(2)}</p>
             <p className="font-semibold text-ink/80">Risk Score: {totalScore}</p>
             <p className="text-xs text-ink/60 mt-1">{reason}</p>
           </div>

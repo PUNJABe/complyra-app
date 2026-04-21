@@ -29,14 +29,14 @@ export default function Home() {
               Your finance control tower for faster, cleaner spend decisions.
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-ink/75 md:text-lg">
-              Smart platform that ensures financial rules are followed. Upload transactions, map policy controls, and ask plain-English questions with actionable AI guidance.
+              Smart platform that ensures financial rules are followed. Upload transactions, get explainable AI decisions, auto-create investigations, forecast spend, and launch industry templates in one place.
             </p>
 
             <div className="mt-7 grid gap-4 sm:grid-cols-3">
               {[
-                { label: "Policy Confidence", value: "92%", hint: "No. of transactions within policy" },
-                { label: "Pending Approvals", value: "18", hint: "5 flagged as urgent" },
-                { label: "Forecast Gap", value: "-$12.4K", hint: "Projected variance this month" },
+                { label: "Explainability", value: "On", hint: "Every flag includes reason + evidence" },
+                { label: "Auto Cases", value: "3", hint: "Created from anomalies and forecasts" },
+                { label: "Forecast", value: "+12%", hint: "Next month spend pressure" },
               ].map((metric) => (
                 <article key={metric.label} className="rounded-2xl border border-ink/10 bg-white p-4">
                   <p className="text-xs font-medium uppercase tracking-[0.08em] text-ink/55">{metric.label}</p>
@@ -118,8 +118,8 @@ export default function Home() {
             <p className="text-sm font-semibold">Suggested prompts</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {[
-                "Which vendors grew most?",
-                "List high-severity findings",
+                "Why was this flagged?",
+                "Create an investigation from anomalies",
                 "Forecast next 30 days",
               ].map((prompt) => (
                 <button

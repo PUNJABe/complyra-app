@@ -45,6 +45,38 @@ export default function InvestigatorPage() {
         ))}
       </section>
 
+      <section className="rounded-2xl border border-ink/10 bg-white/82 p-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold">Auto-created Investigation Cases</h3>
+            <p className="mt-1 text-sm text-ink/65">Cases generated automatically from explainable AI, anomaly spikes, and forecast risk.</p>
+          </div>
+          <span className="rounded-full border border-ink/20 bg-canvas px-3 py-1 text-xs font-semibold text-ink/70">
+            {data.cases.length} open threads
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {data.cases.map((item) => (
+            <article key={item.id} className="rounded-2xl border border-ink/10 bg-canvas/60 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <h4 className="text-sm font-semibold leading-5">{item.title}</h4>
+                <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${item.status === "open" ? "bg-rose-100 text-rose-700" : item.status === "triaged" ? "bg-amber-100 text-amber-700" : "bg-sky-100 text-sky-700"}`}>
+                  {item.status}
+                </span>
+              </div>
+              <p className="mt-2 text-xs uppercase tracking-[0.12em] text-ink/55">Source: {item.source}</p>
+              <p className="mt-2 text-sm text-ink/75">{item.reason}</p>
+              <div className="mt-3 flex items-center justify-between text-xs text-ink/65">
+                <span>Owner: {item.owner}</span>
+                <span>Score {item.riskScore}</span>
+              </div>
+              <p className="mt-2 text-xs text-ink/55">Created {new Date(item.createdAt).toLocaleString()}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <SpendGraphCard graph={data.graph} />
 
       <section className="rounded-2xl border border-ink/10 bg-white/82 p-5">

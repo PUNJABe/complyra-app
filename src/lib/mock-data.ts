@@ -96,18 +96,51 @@ export const overviewData: OverviewPayload = {
       insight: "Food delivery and ride-share spend is growing 22% month-over-month.",
       recommendation: "Cap non-client meals and pooled ride reimbursement thresholds.",
       action: "Apply Travel & Meals policy template v2 to Sales + Ops this week.",
-      savingsImpact: "Saves about Rs 2.3L/month",
+      savingsImpact: 230000,
       confidence: 91,
+      explainability: {
+        why: "Travel and meals are rising faster than overall spend, which usually indicates policy drift.",
+        evidence: "Three departments crossed their 90-day baseline by more than 18%.",
+        baseline: "Typical month-over-month variance for these categories is under 6%.",
+      },
     },
     {
       id: "r-2",
       insight: "Team Operations has 3x more policy exceptions than average.",
       recommendation: "Move Ops expenses above Rs 12,000 to mandatory manager pre-approval.",
       action: "Turn on pre-approval auto-route in policy builder.",
-      savingsImpact: "Reduces high-risk exposure by Rs 7.8L/quarter",
+      savingsImpact: 780000,
       confidence: 87,
+      explainability: {
+        why: "Operations combines high frequency with repeated exception patterns.",
+        evidence: "Ops generated 45% of all medium and high severity findings in the last cycle.",
+        baseline: "Other teams average one exception stream; Ops shows three distinct patterns.",
+      },
     },
   ],
+  forecast: {
+    nextMonthSpend: 103500,
+    changePct: 12,
+    confidence: 84,
+    scenario: "Most likely scenario based on current run-rate and repeated vendor spikes.",
+    drivers: [
+      {
+        label: "Travel",
+        impactPct: 5,
+        evidence: "Airfare and hotel bookings are trending above the seasonal baseline.",
+      },
+      {
+        label: "Software renewals",
+        impactPct: 4,
+        evidence: "Q2 renewals are clustered in a narrow 10-day window.",
+      },
+      {
+        label: "Contractor invoices",
+        impactPct: 3,
+        evidence: "Three vendors repeated the same invoice pattern twice.",
+      },
+    ],
+  },
 };
 
 export const copilotData: CopilotPayload = {
@@ -117,10 +150,10 @@ export const copilotData: CopilotPayload = {
 
 export const policyData: PolicyPayload = {
   summary: {
-    totalFindings: 27,
-    highSeverity: 8,
-    mediumSeverity: 19,
-    exposure: 32460,
+    totalFindings: 6,
+    highSeverity: 2,
+    mediumSeverity: 4,
+    exposure: 59640,
   },
   findings: [
     {
@@ -129,10 +162,10 @@ export const policyData: PolicyPayload = {
       issue: "Expense above approval limit",
       merchant: "AirNimbus",
       date: "2026-04-10",
-      amount: 2840,
+      amount: 28400,
       explainability: {
-        whyFlagged: "Amount exceeds default team threshold of Rs 2,500.",
-        evidence: "Transaction #AIR-99231 submitted for Rs 2,840 without approver ID.",
+        whyFlagged: "Amount exceeds the default team approval threshold.",
+        evidence: "Transaction #AIR-99231 was submitted without approver ID for a high-value travel charge.",
         ruleTriggered: "RULE_TRAVEL_APPROVAL_LIMIT_V2",
         impact: "High severity. Auto-hold reimbursement until manager approval.",
       },
@@ -143,9 +176,9 @@ export const policyData: PolicyPayload = {
       issue: "Weekend meal without note",
       merchant: "UrbanFork",
       date: "2026-04-08",
-      amount: 126,
+      amount: 1260,
       explainability: {
-        whyFlagged: "Meal on weekend requires business justification note.",
+        whyFlagged: "Meal on a weekend requires a business justification note.",
         evidence: "Receipt timestamp Sunday 21:14 with empty notes field.",
         ruleTriggered: "RULE_MEALS_WEEKEND_NOTE_REQUIRED",
         impact: "Medium severity. User must add note before approval.",
@@ -157,10 +190,10 @@ export const policyData: PolicyPayload = {
       issue: "Potential duplicate invoice",
       merchant: "CloudPeak",
       date: "2026-04-07",
-      amount: 1260,
+      amount: 12600,
       explainability: {
-        whyFlagged: "Same amount + same vendor appears twice inside 24h.",
-        evidence: "Invoices INV-7731 and INV-7738 both for Rs 1,260 within 11h.",
+        whyFlagged: "Same amount and vendor appear twice inside a 24-hour window.",
+        evidence: "Invoices INV-7731 and INV-7738 were both submitted for the same service window within 11h.",
         ruleTriggered: "RULE_DUPLICATE_VENDOR_AMOUNT_WINDOW",
         impact: "High severity. Potential duplicate payment risk.",
       },
@@ -171,9 +204,9 @@ export const policyData: PolicyPayload = {
       issue: "Policy category mismatch",
       merchant: "DriveQuick",
       date: "2026-04-06",
-      amount: 312,
+      amount: 3120,
       explainability: {
-        whyFlagged: "Category selected as Office Supplies for transport receipt.",
+        whyFlagged: "Category selected as Office Supplies for a transport receipt.",
         evidence: "Merchant taxonomy classified as mobility service.",
         ruleTriggered: "RULE_CATEGORY_MISMATCH_CLASSIFIER",
         impact: "Medium severity. May affect budget accuracy.",
@@ -185,13 +218,65 @@ export const policyData: PolicyPayload = {
       issue: "Out-of-policy software add-on",
       merchant: "TeamSuite",
       date: "2026-04-03",
-      amount: 940,
+      amount: 9400,
       explainability: {
-        whyFlagged: "Addon purchase made outside approved vendor plan list.",
+        whyFlagged: "Add-on purchase made outside the approved vendor plan list.",
         evidence: "SKU TS-ADD-ANALYTICS not in authorized procurement set.",
         ruleTriggered: "RULE_SOFTWARE_SKU_ALLOWLIST",
         impact: "Medium severity. Route to procurement review.",
       },
+    },
+    {
+      id: "p-105",
+      severity: "medium",
+      issue: "Split taxi rides under threshold",
+      merchant: "RideWave",
+      date: "2026-04-02",
+      amount: 4860,
+      explainability: {
+        whyFlagged: "Multiple taxi claims were split below the single-claim approval threshold.",
+        evidence: "Three receipts were filed on the same evening with matching route metadata.",
+        ruleTriggered: "RULE_SPLIT_EXPENSE_THRESHOLD",
+        impact: "Medium severity. Review for intentional threshold splitting.",
+      },
+    },
+  ],
+  templates: [
+    {
+      id: "tpl-startup-travel",
+      industry: "Startup",
+      name: "Startup Lean Spend Guardrail",
+      description: "Keep early-stage teams fast while protecting runway and approvals.",
+      focus: ["Founder approval limits", "Travel caps", "SaaS renewals"],
+      rules: [
+        "If spend exceeds Rs 10,000, require founder approval.",
+        "If SaaS renewals exceed 12% of monthly budget, route to finance.",
+        "If travel is not client-related, cap reimbursement to default policy.",
+      ],
+    },
+    {
+      id: "tpl-enterprise-controls",
+      industry: "Enterprise",
+      name: "Enterprise Control Tower",
+      description: "High-coverage policy set for large finance and operations teams.",
+      focus: ["Role-based approvals", "Duplicate invoice checks", "Department budgets"],
+      rules: [
+        "If amount exceeds department threshold, require manager plus finance approval.",
+        "If same vendor and amount repeat within 24h, flag as duplicate.",
+        "If department budget is above run-rate by 8%, trigger predictive review.",
+      ],
+    },
+    {
+      id: "tpl-healthcare-compliance",
+      industry: "Healthcare",
+      name: "Healthcare Compliance Shield",
+      description: "Designed for regulated teams with auditability and patient-facing controls.",
+      focus: ["Audit trail", "Vendor validation", "Sensitive spend approvals"],
+      rules: [
+        "If vendor is not in approved healthcare list, route for compliance review.",
+        "If expense relates to patient transport, require documented business purpose.",
+        "If spend touches regulated categories, retain explainability and approver chain.",
+      ],
     },
   ],
 };
@@ -215,6 +300,38 @@ export const investigationData: InvestigationPayload = {
       merchants: ["CityBrew", "NightBar"],
       pattern: "Policy violations 3x baseline in after-hours windows.",
       totalAmount: 41200,
+    },
+  ],
+  cases: [
+    {
+      id: "case-1",
+      title: "Auto-created case: Travel threshold breach",
+      source: "Policy engine",
+      reason: "High severity travel claim exceeded policy limit and matched duplicate vendor behavior.",
+      riskScore: 93,
+      status: "open",
+      owner: "Finance Ops",
+      createdAt: "2026-04-18T09:12:00.000Z",
+    },
+    {
+      id: "case-2",
+      title: "Auto-created case: Software renewal spike",
+      source: "Predictive layer",
+      reason: "Forecast model detected an 11% uplift tied to renewal clustering.",
+      riskScore: 81,
+      status: "triaged",
+      owner: "Procurement",
+      createdAt: "2026-04-17T14:40:00.000Z",
+    },
+    {
+      id: "case-3",
+      title: "Auto-created case: Split expense pattern",
+      source: "Anomaly detector",
+      reason: "Repeated same-day vendor amounts fell just below approval thresholds.",
+      riskScore: 88,
+      status: "monitoring",
+      owner: "Audit Team",
+      createdAt: "2026-04-16T11:05:00.000Z",
     },
   ],
   graph: {
@@ -285,6 +402,83 @@ export const integrationsData: IntegrationsPayload = {
 
 export function answerForPrompt(prompt: string): ChatResponse {
   const q = prompt.toLowerCase();
+
+  if (q.includes("gst") && (q.includes("error") || q.includes("mismatch") || q.includes("check"))) {
+    return {
+      answer:
+        "GST scan completed. I found 4 potential mismatches: 2 high-risk travel claims with weak invoice linkage, 1 duplicate tax invoice pattern, and 1 category mismatch that may affect ITC.",
+      visualization: {
+        kind: "donut",
+        title: "GST Error Mix",
+        segments: [
+          { label: "Mismatch risk", value: 40 },
+          { label: "Duplicate invoice", value: 30 },
+          { label: "Missing invoice", value: 20 },
+          { label: "Category mismatch", value: 10 },
+        ],
+      },
+      reasoning: {
+        insight: "Most GST risk comes from high-value travel reimbursements and invoice duplication windows.",
+        recommendation: "Prioritize travel invoices above Rs 2,000 and validate invoice IDs before filing.",
+        action: "Open auto-investigation cases for high-risk GST entries and attach supporting docs.",
+      },
+    };
+  }
+
+  if (q.includes("audit") && (q.includes("risk") || q.includes("top") || q.includes("pre"))) {
+    return {
+      answer:
+        "Pre-audit assistant identified 10 risky transactions. Top patterns: duplicate expenses, unusual vendor concentration, and approval-threshold splits.",
+      visualization: {
+        kind: "stacked",
+        title: "Top Audit Risk Categories",
+        bars: [
+          { label: "Duplicates", segments: [{ label: "Exact amount", value: 4 }, { label: "24h window", value: 3 }] },
+          { label: "Vendor anomalies", segments: [{ label: "New vendor spikes", value: 2 }, { label: "Round amounts", value: 2 }] },
+          { label: "Policy bypass", segments: [{ label: "Threshold split", value: 3 }, { label: "Late approvals", value: 1 }] },
+        ],
+      },
+      reasoning: {
+        insight: "Risk concentration is not broad-based; it is clustered around repeated vendor behavior.",
+        recommendation: "Run focused document validation on top 3 merchants before audit closure.",
+        action: "Export client-ready audit exception list from insights panel.",
+      },
+    };
+  }
+
+  if ((q.includes("save") && q.includes("tax")) || q.includes("deduction") || q.includes("80c")) {
+    return {
+      answer:
+        "You still have 80C headroom. Investing in ELSS can reduce projected tax outflow by about Rs 15,000, depending on your slab and current declarations.",
+      reasoning: {
+        insight: "Your current profile shows unused tax-saving capacity under common deduction buckets.",
+        recommendation: "Allocate a monthly SIP toward ELSS and track it inside your personal mode dashboard.",
+        action: "Set a reminder in the filing calendar before quarter close.",
+      },
+    };
+  }
+
+  if (q.includes("overspending") || q.includes("wasting") || q.includes("save more")) {
+    return {
+      answer:
+        "You are currently overspending in subscriptions and transport versus your 90-day baseline. Total excess is about 18% month-to-date.",
+      visualization: {
+        kind: "line",
+        title: "Overspending Trend",
+        points: [
+          { label: "W1", value: 8200 },
+          { label: "W2", value: 9100 },
+          { label: "W3", value: 10300 },
+          { label: "W4", value: 11200 },
+        ],
+      },
+      reasoning: {
+        insight: "Recurring subscriptions are the fastest-growing controllable category.",
+        recommendation: "Cancel low-use subscriptions and set a monthly transport cap.",
+        action: "Turn on smart alerts for subscription renewal and travel spikes.",
+      },
+    };
+  }
 
   if (q.includes("why") && q.includes("travel") && q.includes("march")) {
     return {

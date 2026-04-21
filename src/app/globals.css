@@ -1,23 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f6f3ee;
-  --ink: #182230;
-  --accent: #b58e63;
-  --highlight: #5f788e;
-}
-:root {
-  --canvas: #f6f3ee;
-  --ink: #182230;
-  --accent: #b58e63;
-  --highlight: #5f788e;
+  --canvas: #f8fafc;
+  --ink: #0f172a;
+  --accent: #1e3a8a;
+  --highlight: #10b981;
 }
 
 .dark {
-  --canvas: #1a1a1f;
-  --ink: #e8e8ed;
-  --accent: #c9a574;
-  --highlight: #7a8fa8;
+  --canvas: #000000;
+  --ink: #f4f4f5;
+  --accent: #1e3a8a;
+  --highlight: #10b981;
+}
+
+.dark [class*="bg-white"] {
+  background-color: rgba(9, 9, 11, 0.92) !important;
+}
+
+.dark [class*="bg-white/"] {
+  background-color: rgba(9, 9, 11, 0.88) !important;
+}
+
+.dark [class*="bg-canvas/"] {
+  background-color: rgba(9, 9, 11, 0.82) !important;
+}
+
+.dark [class*="border-ink/10"],
+.dark [class*="border-ink/12"],
+.dark [class*="border-ink/15"],
+.dark [class*="border-ink/20"],
+.dark [class*="border-ink/25"] {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+.dark [class*="border-ink/30"],
+.dark [class*="border-ink/40"] {
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+.dark body {
+  background: #000000;
+}
+
+.dark body::before {
+  background:
+    radial-gradient(circle at 8% 12%, rgba(208, 176, 138, 0.14), transparent 30%),
+    radial-gradient(circle at 92% 28%, rgba(127, 147, 173, 0.1), transparent 26%),
+    #000000;
 }
 
 @theme inline {
@@ -48,9 +78,23 @@
 
 body {
   min-height: 100vh;
-  background: radial-gradient(circle at 8% 12%, rgba(181, 142, 99, 0.18), transparent 30%),
-    radial-gradient(circle at 92% 28%, rgba(95, 120, 142, 0.14), transparent 26%),
+  background: radial-gradient(circle at 8% 12%, rgba(30, 58, 138, 0.16), transparent 30%),
+    radial-gradient(circle at 92% 28%, rgba(16, 185, 129, 0.12), transparent 26%),
     var(--canvas);
   color: var(--ink);
   font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+}
+
+*::selection {
+  background: rgba(30, 58, 138, 0.22);
+  color: var(--ink);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: inherit;
 }

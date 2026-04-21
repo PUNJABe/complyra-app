@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 
 import type { CopilotPayload } from "@/lib/types";
+import { useFormatMoney } from "@/lib/use-format-money";
 
 export default function CopilotPage() {
   const [data, setData] = useState<CopilotPayload | null>(null);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const formatMoney = useFormatMoney();
 
   useEffect(() => {
     const run = async () => {
@@ -72,9 +74,18 @@ export default function CopilotPage() {
             <p className="mt-1 text-sm text-ink/80">{item.action}</p>
 
             <div className="mt-4 flex items-center justify-between rounded-xl bg-canvas/70 px-3 py-2 text-xs">
-              <span className="font-semibold text-ink/75">{item.savingsImpact}</span>
+              <span className="font-semibold text-ink/75">{formatMoney(item.savingsImpact)}</span>
               <span className="text-ink/60">Confidence {item.confidence}%</span>
             </div>
+
+            {item.explainability && (
+              <div className="mt-4 rounded-2xl border border-ink/10 bg-canvas/55 p-4 text-xs text-ink/70">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink/55">Why this is recommended</p>
+                <p className="mt-2"><span className="font-semibold text-ink/80">Why:</span> {item.explainability.why}</p>
+                <p className="mt-2"><span className="font-semibold text-ink/80">Evidence:</span> {item.explainability.evidence}</p>
+                <p className="mt-2"><span className="font-semibold text-ink/80">Baseline:</span> {item.explainability.baseline}</p>
+              </div>
+            )}
 
             <button
               type="button"
