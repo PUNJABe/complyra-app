@@ -12,6 +12,21 @@ type LoginResponse = {
   error?: string;
 };
 
+async function parseLoginResponse(response: Response): Promise<LoginResponse> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      return (await response.json()) as LoginResponse;
+    } catch {
+      return {};
+    }
+  }
+
+  const text = await response.text();
+  return text ? { error: text } : {};
+}
+
 type LoginScreenProps = {
   heading?: string;
   description?: string;
@@ -40,9 +55,9 @@ export function LoginScreen({
         body: JSON.stringify({ email, password, provider }),
       });
 
-      const payload = (await response.json()) as LoginResponse;
+      const payload = await parseLoginResponse(response);
       if (!response.ok) {
-        throw new Error(payload.error ?? "Login failed.");
+        throw new Error(payload.error ?? `Login failed (${response.status}).`);
       }
 
       router.push("/onboarding");
