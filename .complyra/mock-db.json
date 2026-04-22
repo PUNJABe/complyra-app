@@ -51,6 +51,17 @@
   ],
   "auditTrail": [
     {
+      "id": "audit-1776823829923-mbpn3o",
+      "createdAt": "2026-04-22T02:10:29.923Z",
+      "action": "report_viewed",
+      "actor": "demo@complyra.local",
+      "details": "Reports dashboard opened.",
+      "resource": "reports",
+      "severity": "info",
+      "ip": "::1",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+    },
+    {
       "id": "audit-1776822084491-jy7vaf",
       "createdAt": "2026-04-22T01:41:24.491Z",
       "action": "report_viewed",
@@ -9751,5 +9762,5 @@
   "integrationReceipts": [],
   "deadLetters": [],
   "createdAt": "2026-04-18T10:53:24.050Z",
-  "updatedAt": "2026-04-22T01:41:24.491Z"
+  "updatedAt": "2026-04-22T02:10:29.923Z"
 }
