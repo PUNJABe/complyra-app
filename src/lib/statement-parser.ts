@@ -150,29 +150,78 @@ function parseSheetDate(value: unknown): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function normalizeHeaderKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getFirstStringValue(row: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = row[key];
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  return undefined;
+}
+
+function getFirstValue(row: Record<string, unknown>, keys: string[]): unknown {
+  for (const key of keys) {
+    const value = row[key];
+    if (value !== undefined && value !== null && value !== "") {
+      return value;
+    }
+  }
+  return undefined;
+}
+
 function rowsToTransactions(rows: Record<string, unknown>[]): ParsedTransaction[] {
   const transactions: ParsedTransaction[] = [];
 
   for (const row of rows) {
     const merchant =
-      (row.merchant as string) ??
-      (row.vendor as string) ??
-      (row.description as string) ??
-      (row.payee as string) ??
-      "Unknown Merchant";
+      getFirstStringValue(row, [
+        "merchant",
+        "vendor",
+        "description",
+        "payee",
+        "narration",
+        "particulars",
+        "remarks",
+        "details",
+        "beneficiary",
+      ]) ?? "Unknown Merchant";
 
-    const amount = parseAmount(
-      row.amount ?? row.value ?? row.total ?? row.signedamount ?? row.debit ?? row.credit
+    const debitAmount = parseAmount(
+      getFirstValue(row, ["debit", "withdrawalamt", "withdrawal", "dr"])
+    );
+    const creditAmount = parseAmount(
+      getFirstValue(row, ["credit", "depositamt", "deposit", "cr"])
     );
 
-    if (!amount) continue;
+    const amount = parseAmount(
+      getFirstValue(row, ["amount", "value", "total", "signedamount", "txnamount"])
+    );
+
+    const resolvedAmount = amount || debitAmount || creditAmount;
+
+    if (!resolvedAmount) continue;
 
     transactions.push({
-      date: parseSheetDate(row.date ?? row.postingdate ?? row.transactiondate),
+      date: parseSheetDate(
+        getFirstValue(row, [
+          "date",
+          "transactiondate",
+          "txndate",
+          "postingdate",
+          "valuedate",
+          "transdate",
+        ])
+      ),
       merchant,
-      amount,
-      category: (row.category as string) ?? categorizeTransaction(merchant),
-      description: (row.description as string) ?? undefined,
+      amount: resolvedAmount,
+      category: getFirstStringValue(row, ["category"]) ?? categorizeTransaction(merchant),
+      description: getFirstStringValue(row, ["description", "narration", "particulars", "remarks"]),
     });
   }
 
@@ -268,7 +317,7 @@ export async function parseStatementFile(
     const normalizedRows = rows.map((row) => {
       const normalized: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(row)) {
-        normalized[key.trim().toLowerCase()] = value;
+        normalized[normalizeHeaderKey(key)] = value;
       }
       return normalized;
     });
@@ -277,5 +326,31 @@ export async function parseStatementFile(
   }
 
   const text = await file.text();
+  try {
+    const workbook = XLSX.read(text, { type: "string" });
+    const sheetName = workbook.SheetNames[0];
+
+    if (sheetName) {
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+        defval: "",
+        raw: false,
+      });
+
+      const normalizedRows = rows.map((row) => {
+        const normalized: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(row)) {
+          normalized[normalizeHeaderKey(key)] = value;
+        }
+        return normalized;
+      });
+
+      const parsed = rowsToTransactions(normalizedRows);
+      if (parsed.length > 0) return parsed;
+    }
+  } catch {
+    // Fall back to legacy CSV parser below.
+  }
+
   return parseCSV(text);
 }
