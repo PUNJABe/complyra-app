@@ -3,6 +3,8 @@
  * Generates budget policies based on transaction analysis
  */
 
+import { generateOpenAIJSON } from "@/lib/openai";
+
 export interface BudgetPolicy {
   category: string;
   monthlyLimit: number;
@@ -24,7 +26,7 @@ export interface CompliancePolicy {
 /**
  * Generate AI policy from transaction analysis
  */
-export function generateAIPolicy(
+function fallbackPolicy(
   categoryBreakdown: Record<string, number>,
   totalTransactions: number
 ): BudgetPolicy[] {
@@ -80,6 +82,46 @@ export function generateAIPolicy(
   return budgets.sort((a, b) => b.monthlyLimit - a.monthlyLimit);
 }
 
+function formatBreakdown(categoryBreakdown: Record<string, number>) {
+  const entries = Object.entries(categoryBreakdown)
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, amount]) => `${category}: ₹${Math.round(amount).toLocaleString("en-IN")}`);
+
+  return entries.length ? entries.join("; ") : "No spend categories found.";
+}
+
+export async function generateAIPolicy(
+  categoryBreakdown: Record<string, number>,
+  totalTransactions: number
+): Promise<BudgetPolicy[]> {
+  const fallback = fallbackPolicy(categoryBreakdown, totalTransactions);
+
+  const aiBudgets = await generateOpenAIJSON<{ budgets: BudgetPolicy[] }>({
+    system:
+      "You generate concise budget policy suggestions from transaction category totals. Return only valid JSON.",
+    user:
+      `Create budget suggestions for these categories. Use the spend mix to set monthly limits with a modest buffer. ` +
+      `Return JSON with this exact shape: {\"budgets\":[{\"category\":string,\"monthlyLimit\":number,\"baseAmount\":number,\"confidence\":number}]}. ` +
+      `Categories: ${formatBreakdown(categoryBreakdown)}. Total transactions: ${totalTransactions}. ` +
+      `Keep the list to the categories present in the data and sort by monthlyLimit descending.`,
+    fallback: { budgets: fallback },
+    temperature: 0.2,
+    maxTokens: 700,
+  });
+
+  const budgets = aiBudgets.budgets
+    .filter((budget) => budget.category && Number.isFinite(budget.monthlyLimit) && Number.isFinite(budget.baseAmount))
+    .map((budget) => ({
+      category: budget.category,
+      monthlyLimit: Math.max(0, Math.round(budget.monthlyLimit)),
+      baseAmount: Math.max(0, Math.round(budget.baseAmount)),
+      confidence: typeof budget.confidence === "number" ? Math.min(1, Math.max(0, budget.confidence)) : 0.8,
+    }))
+    .sort((a, b) => b.monthlyLimit - a.monthlyLimit);
+
+  return budgets.length ? budgets : fallback;
+}
+
 /**
  * Create a complete policy object
  */
@@ -108,14 +150,14 @@ export function createPolicy(
  */
 export function generateWithExplanations(
   categoryBreakdown: Record<string, number>
-): Array<{ category: string; suggested: number; reason: string }> {
-  const estimated = generateAIPolicy(categoryBreakdown, 30);
-  
-  return estimated.map((budget) => ({
-    category: budget.category,
-    suggested: budget.monthlyLimit,
-    reason: `Based on your average spending of ₹${Math.round(budget.baseAmount)}/month`,
-  }));
+): Promise<Array<{ category: string; suggested: number; reason: string }>> {
+  return generateAIPolicy(categoryBreakdown, 30).then((estimated) =>
+    estimated.map((budget) => ({
+      category: budget.category,
+      suggested: budget.monthlyLimit,
+      reason: `Based on your average spending of ₹${Math.round(budget.baseAmount)}/month`,
+    }))
+  );
 }
 
 /**

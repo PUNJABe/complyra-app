@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
-import type { PolicyPayload } from "@/lib/types";
+import type { CopilotPayload, PolicyPayload } from "@/lib/types";
 import { Toast } from "@/components/app/toast";
 import { useFormatMoney } from "@/lib/use-format-money";
 
@@ -10,6 +10,9 @@ export default function CompliancePage() {
   const [data, setData] = useState<PolicyPayload | null>(null);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [fixSuggestions, setFixSuggestions] = useState<CopilotPayload["recommendations"] | null>(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
   const formatMoney = useFormatMoney();
 
   useEffect(() => {
@@ -31,6 +34,51 @@ export default function CompliancePage() {
     const weighted = data.summary.highSeverity * 12 + data.summary.mediumSeverity * 6;
     return Math.max(40, 100 - weighted);
   }, [data]);
+
+  const generateFixSuggestions = async () => {
+    setLoadingSuggestions(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/copilot", { cache: "no-store" });
+      const payload = (await response.json()) as CopilotPayload & { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Failed to generate fix suggestions.");
+      }
+
+      setFixSuggestions(payload.recommendations.slice(0, 3));
+      setToast("Fix suggestions generated from the current statement.");
+      window.setTimeout(() => setToast(""), 2200);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unexpected suggestion error.");
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const applySuggestion = async (recommendationId: string) => {
+    setApplyingId(recommendationId);
+    setError("");
+
+    try {
+      const response = await fetch("/api/copilot/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recommendationId }),
+      });
+
+      const payload = (await response.json()) as { message?: string; error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Failed to apply fix suggestion.");
+
+      setToast(payload.message ?? "Fix suggestion applied.");
+      window.setTimeout(() => setToast(""), 2200);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Unexpected apply error.");
+    } finally {
+      setApplyingId(null);
+    }
+  };
 
   if (error) return <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>;
   if (!data) return <div className="h-44 animate-pulse rounded-2xl bg-canvas" />;
@@ -54,14 +102,34 @@ export default function CompliancePage() {
           </div>
           <button
             type="button"
-            onClick={() => {
-              setToast("AI fix suggestions generated");
-              window.setTimeout(() => setToast(""), 2200);
-            }}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-3 py-2 text-sm font-semibold text-white"
+            onClick={generateFixSuggestions}
+            disabled={loadingSuggestions}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1E3A8A] px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Sparkles size={15} /> Fix Suggestions
+            <Sparkles size={15} /> {loadingSuggestions ? "Generating..." : "Fix Suggestions"}
           </button>
+
+          {fixSuggestions?.length ? (
+            <div className="mt-4 space-y-3">
+              {fixSuggestions.map((suggestion) => (
+                <article key={suggestion.id} className="rounded-xl border border-ink/10 bg-canvas/60 p-3 text-sm">
+                  <p className="font-semibold text-ink/85">{suggestion.insight}</p>
+                  <p className="mt-1 text-ink/70">{suggestion.recommendation}</p>
+                  <p className="mt-1 text-xs text-ink/55">
+                    Estimated savings: {formatMoney(suggestion.savingsImpact)} • Confidence {suggestion.confidence}%
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => applySuggestion(suggestion.id)}
+                    disabled={applyingId === suggestion.id}
+                    className="mt-3 rounded-full bg-ink px-3 py-1.5 text-xs font-semibold text-canvas disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {applyingId === suggestion.id ? "Applying..." : "Apply suggestion"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : null}
         </article>
 
         <article className="rounded-2xl border border-ink/10 bg-white/88 p-5">

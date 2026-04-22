@@ -49,7 +49,7 @@ export default function InvestigatorPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold">Auto-created Investigation Cases</h3>
-            <p className="mt-1 text-sm text-ink/65">Cases generated automatically from explainable AI, anomaly spikes, and forecast risk.</p>
+            <p className="mt-1 text-sm text-ink/65">Cases generated automatically from anomaly spikes and risk scoring.</p>
           </div>
           <span className="rounded-full border border-ink/20 bg-canvas px-3 py-1 text-xs font-semibold text-ink/70">
             {data.cases.length} open threads

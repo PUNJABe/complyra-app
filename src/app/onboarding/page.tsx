@@ -33,6 +33,7 @@ export default function OnboardingPage() {
 
     const form = new FormData();
     form.append("file", file);
+    form.append("mode", mode);
 
     try {
       const response = await fetch("/api/onboarding/parse", {

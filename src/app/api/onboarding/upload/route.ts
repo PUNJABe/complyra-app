@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
 import { AUTH_COOKIE, decodeSession } from "@/lib/auth";
-import { addAuditTrailEntry, appendTransactions, type StoredTransaction } from "@/lib/storage";
+import { addAuditTrailEntry, replaceTransactions, type StoredTransaction } from "@/lib/storage";
 
 function parseNumber(value: unknown): number {
   if (typeof value === "number") return value;
@@ -148,7 +148,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const totalStored = await appendTransactions(transactions);
+  const totalStored = await replaceTransactions(transactions);
 
   const cookieHeader = request.headers.get("cookie") ?? "";
   const sessionToken = cookieHeader

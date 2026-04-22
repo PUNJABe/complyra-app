@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Sparkles,
   ClipboardList,
+  ScrollText,
   LogOut,
 } from "lucide-react";
 import type { WorkspaceContextPayload, WorkspaceMode } from "@/lib/types";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/dashboard/upload", label: "Upload Data", icon: FolderUp },
   { href: "/dashboard/reports", label: "Reports", icon: FileBarChart2 },
+  { href: "/dashboard/spend-analysiser", label: "Spend Analysiser", icon: ScrollText },
   { href: "/dashboard/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/dashboard/insights", label: "AI Insights", icon: Sparkles },
   { href: "/dashboard/audit-logs", label: "Audit Logs", icon: ClipboardList },

@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { DonutChartCard, LineChartCard, StackedBarCard } from "@/components/app/charts";
-import type { ChatResponse, WorkspaceContextPayload } from "@/lib/types";
+import type { ChatMessage, ChatResponse, WorkspaceContextPayload } from "@/lib/types";
 
 type ThreadMessage = {
   id: string;
@@ -78,7 +78,10 @@ export default function DashboardChatPage() {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: trimmed }),
+        body: JSON.stringify({
+          prompt: trimmed,
+          messages: messages.map((item) => ({ role: item.role, content: item.content })) as ChatMessage[],
+        }),
       });
 
       const payload = (await response.json()) as ChatResponse & { error?: string };
@@ -147,7 +150,7 @@ export default function DashboardChatPage() {
           <input
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
-            placeholder="Show top vendors by growth"
+            placeholder="Ask about your uploaded statements..."
             className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-sm outline-none ring-accent/35 transition focus:ring-4"
           />
           <button

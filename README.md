@@ -43,8 +43,12 @@ The app uses mock auth by default and can be switched to Supabase if configured.
 - `MOCK_AUTH_EMAIL` and `MOCK_AUTH_PASSWORD` control local demo login credentials.
 - `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` enable Supabase auth.
 - `COMPLYRA_STORAGE_MODE` selects `json` or `sqlite` storage.
+- `OPENAI_API_KEY` enables ChatGPT-backed chat, copilot, compliance, and onboarding policy generation.
+- `OPENAI_MODEL` optionally overrides the default OpenAI model.
 - `SLACK_WEBHOOK_URL` enables Slack delivery.
 - `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, and `WHATSAPP_TO_NUMBER` enable WhatsApp delivery.
+
+When `OPENAI_API_KEY` is set, Complyra uses ChatGPT for its AI-generated answers and recommendations. If it is missing, the app falls back to local statement-driven heuristics so the UI still works.
 
 ## Key routes
 

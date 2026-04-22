@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseStatementFile, analyzeTransactions } from "@/lib/statement-parser";
 import { generateAIPolicy } from "@/lib/policy-generator";
+import { replaceTransactions, setWorkspaceMode } from "@/lib/storage";
+import type { StoredTransaction } from "@/lib/storage";
+import type { WorkspaceMode } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File;
+    const modeValue = formData.get("mode");
+    const mode = modeValue === "personal" || modeValue === "business" ? (modeValue as WorkspaceMode) : null;
     
     if (!file) {
       return NextResponse.json(
@@ -14,11 +19,10 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Validate file type
-    const validTypes = ["text/csv", "text/plain", "application/vnd.ms-excel"];
-    if (!validTypes.includes(file.type) && !file.name.endsWith(".csv")) {
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith(".csv") && !fileName.endsWith(".xlsx") && !fileName.endsWith(".xls")) {
       return NextResponse.json(
-        { error: "Only CSV files are supported at this time" },
+        { error: "Only CSV, XLSX, or XLS files are supported at this time" },
         { status: 400 }
       );
     }
@@ -35,9 +39,25 @@ export async function POST(request: NextRequest) {
     
     // Analyze transactions
     const analysis = analyzeTransactions(transactions);
+
+    const storedTransactions: StoredTransaction[] = transactions.map((transaction, index) => ({
+      id: `${Date.now()}-${index}`,
+      date: transaction.date,
+      merchant: transaction.merchant,
+      amount: transaction.amount,
+      employee: "Imported Statement",
+      department: mode === "personal" ? "Personal" : "Unassigned",
+      category: transaction.category ?? "General",
+    }));
+
+    await replaceTransactions(storedTransactions);
+
+    if (mode) {
+      await setWorkspaceMode(mode);
+    }
     
     // Generate AI policy suggestions
-    const suggestedBudgets = generateAIPolicy(
+    const suggestedBudgets = await generateAIPolicy(
       analysis.categoryBreakdown,
       analysis.totalTransactions
     );

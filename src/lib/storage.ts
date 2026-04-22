@@ -22,6 +22,7 @@ export type StoredTransaction = {
   employee: string;
   department: string;
   category: string;
+  statementId?: string;
 };
 
 type MockStore = {
@@ -33,6 +34,7 @@ type MockStore = {
   auditTrail: AuditTrailEntry[];
   departments: string[];
   transactions: StoredTransaction[];
+  activeStatementId: string | null;
   policyRules: PolicyRule[];
   integrationAlerts: IntegrationAlert[];
   integrationJobs: IntegrationDeliveryJob[];
@@ -94,6 +96,7 @@ const DEFAULT_STORE: MockStore = {
   ],
   departments: ["Marketing", "Operations", "Product", "Finance"],
   transactions: [],
+  activeStatementId: null,
   policyRules: [
     {
       id: "r1",
@@ -144,6 +147,7 @@ async function readJsonStore(): Promise<MockStore> {
       deadlines: parsed.deadlines ?? DEFAULT_STORE.deadlines,
       auditTrail: parsed.auditTrail ?? DEFAULT_STORE.auditTrail,
       transactions: parsed.transactions ?? [],
+      activeStatementId: parsed.activeStatementId ?? null,
       policyRules: parsed.policyRules ?? DEFAULT_STORE.policyRules,
       integrationAlerts: parsed.integrationAlerts ?? [],
       integrationJobs: parsed.integrationJobs ?? [],
@@ -194,6 +198,7 @@ async function readSqliteStore(): Promise<MockStore> {
       deadlines: parsed.deadlines ?? DEFAULT_STORE.deadlines,
       auditTrail: parsed.auditTrail ?? DEFAULT_STORE.auditTrail,
       transactions: parsed.transactions ?? [],
+      activeStatementId: parsed.activeStatementId ?? null,
       policyRules: parsed.policyRules ?? DEFAULT_STORE.policyRules,
       integrationAlerts: parsed.integrationAlerts ?? [],
       integrationJobs: parsed.integrationJobs ?? [],
@@ -388,6 +393,34 @@ export async function appendTransactions(records: StoredTransaction[]) {
   });
 
   return merged.length;
+}
+
+export async function replaceTransactions(records: StoredTransaction[], statementId = `statement-${Date.now()}`) {
+  const store = await readStore();
+  const next = records.slice(0, 1000).map((record) => ({
+    ...record,
+    statementId,
+  }));
+
+  await writeStore({
+    ...store,
+    transactions: next,
+    activeStatementId: statementId,
+    auditTrail: [
+      {
+        id: `audit-${Date.now()}`,
+        action: "transactions_replaced",
+        actor: "user",
+        details: `${records.length} statement transactions imported and active data reset.`,
+        createdAt: new Date().toISOString(),
+        resource: "upload",
+        severity: "info" as const,
+      },
+      ...store.auditTrail,
+    ].slice(0, 300),
+  });
+
+  return next.length;
 }
 
 export async function getPolicyRules() {

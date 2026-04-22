@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 /**
  * Statement Parser
  * Parses bank statements, credit card statements, and expense records
@@ -117,6 +119,63 @@ function categorizeTransaction(merchant: string): string {
   return "Other";
 }
 
+function parseAmount(value: unknown): number {
+  if (typeof value === "number") return Math.abs(value);
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value.replace(/[₹$,\s]/g, ""));
+    return Number.isFinite(parsed) ? Math.abs(parsed) : 0;
+  }
+  return 0;
+}
+
+function parseSheetDate(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.valueOf())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d)).toISOString().slice(0, 10);
+    }
+  }
+
+  if (typeof value === "string") {
+    const date = new Date(value);
+    if (!Number.isNaN(date.valueOf())) {
+      return date.toISOString().slice(0, 10);
+    }
+  }
+
+  return new Date().toISOString().slice(0, 10);
+}
+
+function rowsToTransactions(rows: Record<string, unknown>[]): ParsedTransaction[] {
+  return rows
+    .map((row) => {
+      const merchant =
+        (row.merchant as string) ??
+        (row.vendor as string) ??
+        (row.description as string) ??
+        (row.payee as string) ??
+        "Unknown Merchant";
+      const amount = parseAmount(
+        row.amount ?? row.value ?? row.total ?? row.signedamount ?? row.debit ?? row.credit
+      );
+
+      if (!amount) return null;
+
+      return {
+        date: parseSheetDate(row.date ?? row.postingdate ?? row.transactiondate),
+        merchant,
+        amount,
+        category: (row.category as string) ?? categorizeTransaction(merchant),
+        description: (row.description as string) ?? undefined,
+      } satisfies ParsedTransaction;
+    })
+    .filter((item): item is ParsedTransaction => item !== null);
+}
+
 /**
  * Parse CSV data (expects columns: date, merchant, amount)
  */
@@ -188,12 +247,32 @@ export function analyzeTransactions(
 export async function parseStatementFile(
   file: File
 ): Promise<ParsedTransaction[]> {
-  const text = await file.text();
-  
-  if (file.name.endsWith(".csv")) {
-    return parseCSV(text);
+  const name = file.name.toLowerCase();
+
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const sheetName = workbook.SheetNames[0];
+
+    if (!sheetName) return [];
+
+    const sheet = workbook.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: "",
+      raw: false,
+    });
+
+    const normalizedRows = rows.map((row) => {
+      const normalized: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(row)) {
+        normalized[key.trim().toLowerCase()] = value;
+      }
+      return normalized;
+    });
+
+    return rowsToTransactions(normalizedRows);
   }
-  
-  // For now, treat all text files as CSV-like
+
+  const text = await file.text();
   return parseCSV(text);
 }

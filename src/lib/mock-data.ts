@@ -316,7 +316,7 @@ export const investigationData: InvestigationPayload = {
     {
       id: "case-2",
       title: "Auto-created case: Software renewal spike",
-      source: "Predictive layer",
+      source: "Risk model",
       reason: "Forecast model detected an 11% uplift tied to renewal clustering.",
       riskScore: 81,
       status: "triaged",

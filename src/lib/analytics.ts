@@ -1,7 +1,9 @@
 import { copilotData, integrationsData, investigationData, overviewData, policyData } from "@/lib/mock-data";
 import { processDueDeliveryJobs } from "@/lib/integration-delivery";
 import { getDeadLetters, getIntegrationAlerts, getIntegrationJobs, getIntegrationReceipts, readStore } from "@/lib/storage";
+import { generateOpenAIJSON } from "@/lib/openai";
 import type { CurrencyType } from "@/lib/currency-context";
+import type { StoredTransaction } from "@/lib/storage";
 import type {
   AutoInvestigationCase,
   ComplianceCheckPayload,
@@ -55,6 +57,146 @@ function stddev(values: number[]) {
   const m = mean(values);
   const variance = mean(values.map((value) => (value - m) ** 2));
   return Math.sqrt(variance);
+}
+
+function topEntries(map: Map<string, number>, take = 5) {
+  return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, take);
+}
+
+function getActiveTransactions(store: { transactions: StoredTransaction[]; activeStatementId?: string | null }) {
+  if (!store.activeStatementId) {
+    return store.transactions;
+  }
+
+  const active = store.transactions.filter((transaction) => transaction.statementId === store.activeStatementId);
+  return active.length ? active : store.transactions;
+}
+
+function summarizeTransactions(transactions: StoredTransaction[]) {
+  const totalSpend = transactions.reduce((sum, item) => sum + item.amount, 0);
+  const averageSpend = totalSpend / Math.max(transactions.length, 1);
+  const highSeverity = transactions.filter((item) => item.amount >= 2500).length;
+  const mediumSeverity = transactions.filter((item) => item.amount >= 1000 && item.amount < 2500).length;
+
+  const merchants = new Map<string, number>();
+  const categories = new Map<string, number>();
+  const departments = new Map<string, number>();
+
+  for (const item of transactions) {
+    merchants.set(item.merchant, (merchants.get(item.merchant) ?? 0) + item.amount);
+    categories.set(item.category, (categories.get(item.category) ?? 0) + item.amount);
+    departments.set(item.department, (departments.get(item.department) ?? 0) + item.amount);
+  }
+
+  const merchantSummary = topEntries(merchants, 5)
+    .map(([label, value]) => `${label}: ${formatMoney(value)}`)
+    .join("; ");
+  const categorySummary = topEntries(categories, 5)
+    .map(([label, value]) => `${label}: ${formatMoney(value)}`)
+    .join("; ");
+  const departmentSummary = topEntries(departments, 4)
+    .map(([label, value]) => `${label}: ${formatMoney(value)}`)
+    .join("; ");
+
+  return {
+    totalSpend,
+    averageSpend,
+    highSeverity,
+    mediumSeverity,
+    merchantSummary,
+    categorySummary,
+    departmentSummary,
+  };
+}
+
+function normalizeCopilotRecommendations(recommendations: CopilotPayload["recommendations"]) {
+  return recommendations.map((recommendation, index) => ({
+    ...recommendation,
+    id: `ai-rec-${index + 1}`,
+    savingsImpact: Number.isFinite(recommendation.savingsImpact) ? Math.max(0, Math.round(recommendation.savingsImpact)) : 0,
+    confidence: Number.isFinite(recommendation.confidence) ? Math.min(100, Math.max(0, Math.round(recommendation.confidence))) : 80,
+  }));
+}
+
+function clampCopilotRecommendations(
+  recommendations: CopilotPayload["recommendations"],
+  summary: ReturnType<typeof summarizeTransactions>
+) {
+  const maxSavings = Math.max(1, Math.round(summary.totalSpend * 0.25));
+
+  return normalizeCopilotRecommendations(recommendations).map((recommendation, index) => ({
+    ...recommendation,
+    savingsImpact: Math.min(
+      maxSavings,
+      Math.max(1, Math.round(summary.totalSpend * (index === 0 ? 0.18 : 0.08)))
+    ),
+    confidence: Math.min(97, Math.max(75, recommendation.confidence)),
+  }));
+}
+
+function buildStatementFallbackCopilot(transactions: StoredTransaction[]): CopilotPayload {
+  const summary = summarizeTransactions(transactions);
+  const highRiskCount = summary.highSeverity + summary.mediumSeverity;
+  const categoryHeadline = summary.categorySummary.split("; ")[0]?.trim() || "Uploaded statement";
+
+  return {
+    headline: "Statement-driven finance copilot",
+    recommendations: clampCopilotRecommendations([
+      {
+        id: "fallback-1",
+        insight: `${categoryHeadline} is the dominant spend driver in this upload.`,
+        recommendation: "Set tighter category caps and review the largest merchants for policy fit.",
+        action: "Create a statement-specific budget rule for the highest-spend category.",
+        savingsImpact: Math.round(summary.totalSpend * 0.18),
+        confidence: 84,
+      },
+      {
+        id: "fallback-2",
+        insight: `${highRiskCount} transactions are in the medium or high review band.`,
+        recommendation: "Route these claims to reviewer approval with explainability notes.",
+        action: "Enable risk-based routing for the current statement cycle.",
+        savingsImpact: Math.round(summary.totalSpend * 0.08),
+        confidence: 81,
+      },
+    ], summary),
+  };
+}
+
+async function buildCopilotPayload(transactions: StoredTransaction[]): Promise<CopilotPayload> {
+  if (!transactions.length) {
+    return copilotData;
+  }
+
+  const summary = summarizeTransactions(transactions);
+  const fallback = buildStatementFallbackCopilot(transactions);
+
+  const aiPayload = await generateOpenAIJSON<CopilotPayload>({
+    system:
+      "You are Complyra's compliance copilot. Return only valid JSON with a headline and 2-3 practical recommendations grounded in the provided statement summary.",
+    user:
+      `Statement summary:\n` +
+      `- Transactions: ${transactions.length}\n` +
+      `- Total spend: ${formatMoney(summary.totalSpend)}\n` +
+      `- Average spend: ${formatMoney(summary.averageSpend)}\n` +
+      `- High severity transactions: ${summary.highSeverity}\n` +
+      `- Medium severity transactions: ${summary.mediumSeverity}\n` +
+      `- Top merchants: ${summary.merchantSummary || "None"}\n` +
+      `- Top categories: ${summary.categorySummary || "None"}\n` +
+      `- Department split: ${summary.departmentSummary || "None"}\n\n` +
+      `Return JSON with this exact shape: {"headline": string, "recommendations": [{"id": string, "insight": string, "recommendation": string, "action": string, "savingsImpact": number, "confidence": number, "explainability": {"why": string, "evidence": string, "baseline": string}}]}. ` +
+      `Use the same recommendation order every time: highest priority first. Focus on measurable compliance fixes, budget controls, and audit readiness.`,
+    fallback,
+    temperature: 0,
+    maxTokens: 900,
+  });
+
+  return {
+    headline: aiPayload.headline?.trim() || fallback.headline,
+    recommendations: clampCopilotRecommendations(
+      aiPayload.recommendations?.length ? aiPayload.recommendations : fallback.recommendations,
+      summary
+    ),
+  };
 }
 
 function lineFromTransactions(transactions: Array<{ date: string; amount: number }>): LineChartData {
@@ -210,7 +352,7 @@ function policyTemplates(): PolicyTemplate[] {
 
 export async function getOverviewPayload(): Promise<OverviewPayload> {
   const store = await readStore();
-  const transactions = store.transactions;
+  const transactions = getActiveTransactions(store);
 
   if (!transactions.length) {
     return {
@@ -294,6 +436,8 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
     ],
   });
 
+  const copilotRecommendations = await buildCopilotPayload(transactions);
+
   return {
     kpis: [
       { label: "Policy Confidence", value: `${Math.max(60, 97 - highSeverity)}%`, hint: "Calculated from uploaded transaction risk score" },
@@ -316,31 +460,14 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
       rowCount: transactions.length,
       source: "Uploaded CSV/XLSX",
     },
-    copilotRecommendations: [
-      {
-        id: "dynamic-1",
-        insight: "Top discretionary vendors account for disproportionate growth in uploaded data.",
-        recommendation: "Apply budget caps to meals + mobility categories for high-frequency claimants.",
-        action: "Publish Smart Cap policy and push alerts to channel owners.",
-        savingsImpact: Math.round(total * 0.18),
-        confidence: 86,
-      },
-      {
-        id: "dynamic-2",
-        insight: `There are ${highSeverity + mediumSeverity} transactions likely needing policy review.`,
-        recommendation: "Auto-route medium/high risk claims to manager queue with explainability summary.",
-        action: "Enable risk-based routing in no-code policy builder.",
-        savingsImpact: Math.round(total * 0.08),
-        confidence: 82,
-      },
-    ],
+    copilotRecommendations: copilotRecommendations.recommendations,
     forecast: forecastFromTransactions(transactions),
   };
 }
 
 export async function getPolicyPayload(): Promise<PolicyPayload> {
   const store = await readStore();
-  const transactions = store.transactions;
+  const transactions = getActiveTransactions(store);
 
   if (!transactions.length) {
     return policyData;
@@ -383,18 +510,13 @@ export async function getPolicyPayload(): Promise<PolicyPayload> {
 }
 
 export async function getCopilotPayload(): Promise<CopilotPayload> {
-  const overview = await getOverviewPayload();
-  return {
-    headline: "AI-powered finance investigator + compliance copilot",
-    recommendations: overview.copilotRecommendations.length
-      ? overview.copilotRecommendations
-      : copilotData.recommendations,
-  };
+  const store = await readStore();
+  return buildCopilotPayload(getActiveTransactions(store));
 }
 
 export async function getInvestigationPayload(): Promise<InvestigationPayload> {
   const store = await readStore();
-  const transactions = store.transactions;
+  const transactions = getActiveTransactions(store);
 
   if (!transactions.length) {
     return investigationData;
@@ -499,7 +621,7 @@ export async function getInvestigationPayload(): Promise<InvestigationPayload> {
     .map((item, index) => ({
       id: `auto-case-${index + 1}`,
       title: `Auto-created case: ${item.employee} / ${item.merchant}`,
-      source: item.anomalyScore >= 90 ? "Explainable AI" : "Anomaly detector",
+      source: item.anomalyScore >= 90 ? "Risk model" : "Anomaly detector",
       reason: `Spend moved ${item.trendDeltaPct}% above baseline with z-score ${item.zScore}.`,
       riskScore: item.anomalyScore,
       status: item.anomalyScore >= 90 ? "open" : "triaged",
@@ -604,7 +726,7 @@ export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
 
 export async function getComplianceCheckPayload(): Promise<ComplianceCheckPayload> {
   const store = await readStore();
-  const transactions = store.transactions.slice(0, 400);
+  const transactions = getActiveTransactions(store).slice(0, 400);
 
   if (!transactions.length) {
     return {
@@ -625,56 +747,145 @@ export async function getComplianceCheckPayload(): Promise<ComplianceCheckPayloa
     duplicateMap.set(key, (duplicateMap.get(key) ?? 0) + 1);
   }
 
+  const gstReasons = [
+    "GST-sensitive transaction appears to have mismatch risk.",
+    "Travel/fuel spend appears taxable but invoice metadata is incomplete.",
+    "Potential GST credit leakage due to weak tax evidence trail.",
+  ];
+  const duplicateReasons = [
+    "Duplicate expense pattern detected in upload.",
+    "Repeated merchant + amount signature suggests potential duplicate reimbursement.",
+    "Multiple entries with near-identical claim fingerprint were detected.",
+  ];
+  const suspiciousReasons = [
+    "Vendor label pattern is commonly associated with weak invoice trails.",
+    "Merchant naming appears non-specific and requires additional verification.",
+    "Counterparty profile looks atypical for the selected expense category.",
+  ];
+  const missingReasons = [
+    "Potential missing invoice or weak classification.",
+    "Receipt/invoice evidence likely incomplete for this transaction.",
+    "Category and merchant metadata are insufficient for clean audit closure.",
+  ];
+
   const findings = transactions.map((item, index) => {
     const duplicateKey = `${item.merchant.toLowerCase()}|${item.amount.toFixed(0)}|${item.date}`;
     const duplicateCount = duplicateMap.get(duplicateKey) ?? 0;
-    const missingInvoice = item.merchant.toLowerCase().includes("unknown") || item.category.toLowerCase() === "general";
-    const gstMismatch = item.amount > 2000 && item.category.toLowerCase().includes("travel");
-    const suspiciousVendor = /(cash|misc|temp|unknown)/i.test(item.merchant);
+    const categoryLower = item.category.toLowerCase();
+    const merchantLower = item.merchant.toLowerCase();
+    const genericMerchant = /^(upi|others|misc|unknown|cash|temp|transfer)$/i.test(item.merchant.trim());
+    const missingInvoice = genericMerchant || categoryLower === "general" || item.employee.toLowerCase().includes("unknown");
+    const gstMismatch = item.amount >= 5000 && /(travel|fuel|transport|logistics)/i.test(categoryLower);
+    const suspiciousVendor = /(cash|misc|temp|unknown|others)/i.test(merchantLower) || item.amount >= 25000;
 
-    let kind: ComplianceCheckPayload["topRisks"][number]["kind"] = "missing-invoice";
-    let severity: "high" | "medium" | "low" = "low";
-    let reason = "General compliance review recommended.";
-    let evidence = `${item.merchant} on ${item.date} for ${formatMoney(item.amount)}.`;
+    const merchantDisplay = genericMerchant
+      ? `${item.merchant.toUpperCase()} • ${item.category || "General"}`
+      : item.merchant;
+
+    const signalScores: Array<{
+      kind: ComplianceCheckPayload["topRisks"][number]["kind"];
+      score: number;
+      reason: string;
+      evidence: string;
+    }> = [];
 
     if (duplicateCount > 1) {
-      kind = "duplicate-expense";
-      severity = "high";
-      reason = "Duplicate expense pattern detected in upload.";
-      evidence = `${duplicateCount} entries share merchant, amount, and date signature.`;
-    } else if (gstMismatch) {
-      kind = "gst-mismatch";
-      severity = "high";
-      reason = "GST-sensitive transaction appears to have mismatch risk.";
-      evidence = "High-value travel expense should include matching GST invoice evidence.";
-    } else if (suspiciousVendor) {
-      kind = "suspicious-vendor";
-      severity = "medium";
-      reason = "Vendor label pattern is commonly associated with weak invoice trails.";
-      evidence = "Vendor naming convention matched suspicious pattern set.";
-    } else if (missingInvoice) {
-      kind = "missing-invoice";
-      severity = "medium";
-      reason = "Potential missing invoice or weak classification.";
-      evidence = "Category or merchant metadata is incomplete for CA audit readiness.";
+      signalScores.push({
+        kind: "duplicate-expense",
+        score: Math.min(99, 66 + duplicateCount * 8 + (item.amount >= 10000 ? 6 : 0)),
+        reason: duplicateReasons[index % duplicateReasons.length],
+        evidence: `${duplicateCount} entries share merchant, amount, and date signature for ${merchantDisplay}.`,
+      });
     }
+
+    if (gstMismatch) {
+      signalScores.push({
+        kind: "gst-mismatch",
+        score: Math.min(97, 74 + Math.round(item.amount / 4000)),
+        reason: gstReasons[index % gstReasons.length],
+        evidence: `${merchantDisplay} (${item.category}) at ${formatMoney(item.amount)} should include GST-compatible invoice evidence.`,
+      });
+    }
+
+    if (suspiciousVendor) {
+      signalScores.push({
+        kind: "suspicious-vendor",
+        score: Math.min(94, 62 + Math.round(item.amount / 6000)),
+        reason: suspiciousReasons[index % suspiciousReasons.length],
+        evidence: `Counterparty ${merchantDisplay} and claim attributes need enhanced due diligence.`,
+      });
+    }
+
+    if (missingInvoice) {
+      signalScores.push({
+        kind: "missing-invoice",
+        score: Math.min(90, 60 + Math.round(item.amount / 8000)),
+        reason: missingReasons[index % missingReasons.length],
+        evidence: `Metadata for ${merchantDisplay} on ${item.date} appears incomplete for CA audit readiness.`,
+      });
+    }
+
+    if (!signalScores.length) {
+      signalScores.push({
+        kind: "missing-invoice",
+        score: 48,
+        reason: "General compliance review recommended.",
+        evidence: `${merchantDisplay} on ${item.date} for ${formatMoney(item.amount)}.`,
+      });
+    }
+
+    const selected = signalScores.sort((a, b) => b.score - a.score)[0];
+    const severity: "high" | "medium" | "low" =
+      selected.score >= 86 ? "high" : selected.score >= 64 ? "medium" : "low";
 
     return {
       id: `cc-${index + 1}`,
-      kind,
+      kind: selected.kind,
       severity,
-      merchant: item.merchant,
+      merchant: merchantDisplay,
       amount: item.amount,
-      reason,
-      evidence,
-      score: severity === "high" ? 90 : severity === "medium" ? 68 : 40,
+      reason: selected.reason,
+      evidence: selected.evidence,
+      score: selected.score,
     };
   });
 
-  const topRisks = findings
-    .filter((item) => item.score >= 60)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 10)
+  const riskyFindings = findings.filter((item) => item.score >= 60);
+
+  const buckets: Record<ComplianceCheckPayload["topRisks"][number]["kind"], typeof riskyFindings> = {
+    "duplicate-expense": riskyFindings.filter((item) => item.kind === "duplicate-expense").sort((a, b) => b.score - a.score),
+    "gst-mismatch": riskyFindings.filter((item) => item.kind === "gst-mismatch").sort((a, b) => b.score - a.score),
+    "suspicious-vendor": riskyFindings.filter((item) => item.kind === "suspicious-vendor").sort((a, b) => b.score - a.score),
+    "missing-invoice": riskyFindings.filter((item) => item.kind === "missing-invoice").sort((a, b) => b.score - a.score),
+  };
+
+  const balanced: typeof riskyFindings = [];
+  const maxTop = 10;
+  const order: Array<ComplianceCheckPayload["topRisks"][number]["kind"]> = [
+    "duplicate-expense",
+    "gst-mismatch",
+    "suspicious-vendor",
+    "missing-invoice",
+  ];
+
+  while (balanced.length < maxTop) {
+    let progressed = false;
+
+    for (const kind of order) {
+      if (balanced.length >= maxTop) break;
+      const next = buckets[kind].shift();
+      if (!next) continue;
+
+      balanced.push(next);
+      progressed = true;
+    }
+
+    if (!progressed) break;
+  }
+
+  const usedIds = new Set(balanced.map((item) => item.id));
+  const topRisks = [...balanced, ...riskyFindings.filter((item) => !usedIds.has(item.id)).sort((a, b) => b.score - a.score)]
+    .slice(0, maxTop)
     .map(({ score, ...rest }) => {
       void score;
       return rest;
