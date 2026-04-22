@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { answerForPrompt } from "@/lib/mock-data";
 import { generateOpenAIText } from "@/lib/openai";
 import { readStore } from "@/lib/storage";
-import type { ChatMessage, ChatResponse, StoredTransaction } from "@/lib/types";
+import type { StoredTransaction } from "@/lib/storage";
+import type { ChatMessage, ChatResponse } from "@/lib/types";
 
 type ChatRequestBody = {
   prompt?: string;

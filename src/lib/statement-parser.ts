@@ -151,29 +151,32 @@ function parseSheetDate(value: unknown): string {
 }
 
 function rowsToTransactions(rows: Record<string, unknown>[]): ParsedTransaction[] {
-  return rows
-    .map((row) => {
-      const merchant =
-        (row.merchant as string) ??
-        (row.vendor as string) ??
-        (row.description as string) ??
-        (row.payee as string) ??
-        "Unknown Merchant";
-      const amount = parseAmount(
-        row.amount ?? row.value ?? row.total ?? row.signedamount ?? row.debit ?? row.credit
-      );
+  const transactions: ParsedTransaction[] = [];
 
-      if (!amount) return null;
+  for (const row of rows) {
+    const merchant =
+      (row.merchant as string) ??
+      (row.vendor as string) ??
+      (row.description as string) ??
+      (row.payee as string) ??
+      "Unknown Merchant";
 
-      return {
-        date: parseSheetDate(row.date ?? row.postingdate ?? row.transactiondate),
-        merchant,
-        amount,
-        category: (row.category as string) ?? categorizeTransaction(merchant),
-        description: (row.description as string) ?? undefined,
-      } satisfies ParsedTransaction;
-    })
-    .filter((item): item is ParsedTransaction => item !== null);
+    const amount = parseAmount(
+      row.amount ?? row.value ?? row.total ?? row.signedamount ?? row.debit ?? row.credit
+    );
+
+    if (!amount) continue;
+
+    transactions.push({
+      date: parseSheetDate(row.date ?? row.postingdate ?? row.transactiondate),
+      merchant,
+      amount,
+      category: (row.category as string) ?? categorizeTransaction(merchant),
+      description: (row.description as string) ?? undefined,
+    });
+  }
+
+  return transactions;
 }
 
 /**
