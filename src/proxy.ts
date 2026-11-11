@@ -108,7 +108,13 @@ async function handle(request: NextRequest, next: () => NextResponse) {
     const response = next();
     response.headers.set("Cache-Control", "no-store");
     return response;
-  } catch {
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown secure service error.";
+    console.error(
+      "Secure service request failed.",
+      message.replace(/postgres(?:ql)?:\/\/\S+/gi, "[database URL redacted]"),
+    );
     return NextResponse.json(
       { error: "The secure service is temporarily unavailable." },
       { status: 503 },
