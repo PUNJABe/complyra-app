@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, Save } from "lucide-react";
 import Link from "next/link";
+import { useFormatMoney, useCurrencySymbol } from "@/lib/use-format-money";
+import { useCurrency } from "@/lib/currency-context";
 
 interface Budget {
   category: string;
@@ -42,6 +44,10 @@ function initializeHybrid(): {
 
 export default function HybridModePage() {
   const router = useRouter();
+  const formatMoney = useFormatMoney();
+  const currencySymbol = useCurrencySymbol();
+  const { exchangeRate, currency, rateUpdatedAt } = useCurrency();
+  const exchangeRateReady = currency === "INR" || rateUpdatedAt !== null;
   const [analysis] = useState<Analysis | null>(
     () => initializeHybrid().analysis,
   );
@@ -123,6 +129,11 @@ export default function HybridModePage() {
           We generated a draft from your spending. Now adjust each category to
           match your goals.
         </p>
+        {!exchangeRateReady && (
+          <p role="status" className="mt-2 text-xs text-ink/55">
+            Updating the exchange rate before enabling budget inputs.
+          </p>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -132,7 +143,7 @@ export default function HybridModePage() {
             Total monthly budget
           </p>
           <p className="text-4xl font-bold text-ink mt-2">
-            ₹{totalMonthly.toLocaleString()}
+            {formatMoney(totalMonthly)}
           </p>
         </div>
 
@@ -153,26 +164,35 @@ export default function HybridModePage() {
                     {budget.category}
                   </p>
                   <p className="text-xs text-ink/60">
-                    Your avg: ₹{budget.baseAverage.toLocaleString()}/month
+                    Your avg: {formatMoney(budget.baseAverage)}/month
                   </p>
                 </div>
                 <div className="w-32">
                   <div className="flex items-center gap-1">
-                    <span className="text-sm text-ink/60">₹</span>
+                    <span className="text-sm text-ink/60">{currencySymbol}</span>
                     <input
                       type="number"
-                      value={customBudgets[budget.category] || 0}
+                      step="0.01"
+                      value={
+                        exchangeRateReady
+                          ? (
+                              (customBudgets[budget.category] || 0) *
+                              exchangeRate
+                            ).toFixed(2)
+                          : ""
+                      }
+                      disabled={!exchangeRateReady}
                       onChange={(e) =>
                         updateBudget(
                           budget.category,
-                          parseInt(e.target.value) || 0,
+                          (Number(e.target.value) || 0) / exchangeRate,
                         )
                       }
                       className="w-full rounded-lg border border-ink/20 bg-white px-3 py-2 text-sm font-mono font-semibold text-right outline-none ring-accent/35 transition focus:ring-4"
                     />
                   </div>
                   <p className="text-xs text-ink/50 mt-1 text-right">
-                    Suggested: ₹{budget.suggestedMonthly.toLocaleString()}
+                    Suggested: {formatMoney(budget.suggestedMonthly)}
                   </p>
                 </div>
               </div>
@@ -189,7 +209,7 @@ export default function HybridModePage() {
         <div className="flex gap-3">
           <button
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || !exchangeRateReady}
             className="flex-1 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60 flex items-center justify-center gap-2"
           >
             <Save className="h-4 w-4" /> Save & Continue

@@ -226,7 +226,7 @@ export default function Home() {
                 [
                   "01",
                   "Start with your statement",
-                  "Create your account, verify your email, then upload a CSV or Excel statement.",
+                  "Create your account, verify your email, then upload a CSV, Excel, or text-based PDF statement.",
                 ],
                 [
                   "02",
@@ -308,7 +308,7 @@ export default function Home() {
               ],
               [
                 "Which statements can I upload?",
-                "CSV, XLSX and XLS files up to 5 MB, with up to 2,000 transactions. Include transaction dates, amounts and merchant descriptions. PDF import is not currently supported.",
+                "CSV, XLSX, XLS, or text-based PDF files up to 5 MB, with up to 2,000 transactions. Include transaction dates, amounts, and merchant descriptions. Scanned PDFs require OCR and are not supported.",
               ],
               [
                 "Will AI make decisions for me?",

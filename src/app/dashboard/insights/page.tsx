@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import type { StoredTransaction } from "@/lib/storage";
 import type { CopilotPayload } from "@/lib/types";
 import { apiFetch } from "@/lib/api-client";
-const money = (value: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(value);
+import {
+  useDisplayCurrencyQuery,
+  useFormatMoney,
+} from "@/lib/use-format-money";
+import { identifyAppPlatform } from "@/lib/app-platforms";
 export default function InsightsPage() {
+  const money = useFormatMoney();
+  const { ready: currencyReady, search: currencySearch } =
+    useDisplayCurrencyQuery();
   const [transactions, setTransactions] = useState<StoredTransaction[] | null>(
     null,
   );
@@ -31,7 +33,9 @@ export default function InsightsPage() {
     setBusy(true);
     setError("");
     try {
-      const response = await apiFetch("/api/copilot", { cache: "no-store" });
+      const response = await apiFetch(`/api/copilot?${currencySearch}`, {
+        cache: "no-store",
+      });
       const data = await response.json();
       if (!response.ok)
         throw new Error(data.error || "Assistance unavailable.");
@@ -54,12 +58,26 @@ export default function InsightsPage() {
   const total = expenses.reduce((sum, item) => sum + item.amount, 0);
   const pending = transactions.filter((item) => item.needsReview);
   const categories = new Map<string, number>();
+  const apps = new Map<string, { count: number; total: number }>();
   for (const item of expenses)
+  {
     categories.set(
       item.category,
       (categories.get(item.category) || 0) + item.amount,
     );
+    const app = identifyAppPlatform(item.merchant);
+    if (app) {
+      const current = apps.get(app.name) || { count: 0, total: 0 };
+      apps.set(app.name, {
+        count: current.count + 1,
+        total: current.total + item.amount,
+      });
+    }
+  }
   const ordered = [...categories.entries()].sort((a, b) => b[1] - a[1]);
+  const orderedApps = [...apps.entries()].sort(
+    (a, b) => b[1].total - a[1].total,
+  );
   return (
     <div className="space-y-6">
       <div>
@@ -93,6 +111,31 @@ export default function InsightsPage() {
           </article>
         ))}
       </section>
+      {orderedApps.length > 0 && (
+        <section className="rounded-2xl border border-ink/10 p-5">
+          <h3 className="font-semibold">App and platform spend</h3>
+          <p className="mt-2 text-xs leading-5 text-ink/55">
+            Recognized merchants are grouped by platform. Check narration and
+            receipts before treating repeated payments as subscriptions.
+          </p>
+          <div className="mt-4 divide-y divide-ink/10">
+            {orderedApps.map(([name, app]) => (
+              <div
+                className="flex items-center justify-between gap-3 py-3 text-sm"
+                key={name}
+              >
+                <span>
+                  {name}
+                  <span className="mt-1 block text-xs text-ink/50">
+                    {app.count} {app.count === 1 ? "payment" : "payments"}
+                  </span>
+                </span>
+                <span className="shrink-0">{money(app.total)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <section className="rounded-2xl border border-ink/10 p-5">
         <h3 className="font-semibold">Where expenses are concentrated</h3>
         {!ordered.length ? (
@@ -154,11 +197,15 @@ export default function InsightsPage() {
           . Suggestions do not establish savings or tax eligibility.
         </p>
         <button
-          disabled={busy}
+          disabled={busy || !currencyReady}
           onClick={() => void suggest()}
           className="rounded-xl bg-emerald-900 px-4 py-3 text-xs text-white disabled:opacity-50"
         >
-          {busy ? "Reviewing..." : "Generate suggestions"}
+          {!currencyReady
+            ? "Updating exchange rate..."
+            : busy
+              ? "Reviewing..."
+              : "Generate suggestions"}
         </button>
         {copilot && (
           <div className="mt-5 space-y-4">

@@ -2,6 +2,7 @@
 
 import type { DonutChartData, LineChartData, StackedBarData } from "@/lib/types";
 import { useState } from "react";
+import { useFormatMoney } from "@/lib/use-format-money";
 
 const palette = ["#b58e63", "#5f788e", "#2f5f69", "#8d6f8f", "#6b7280"];
 
@@ -150,6 +151,7 @@ export function PieChartCard({ data }: { data: DonutChartData }) {
 }
 
 export function StackedBarCard({ data }: { data: StackedBarData }) {
+  const formatMoney = useFormatMoney();
   const totals = data.bars.map((bar) => bar.segments.reduce((sum, segment) => sum + segment.value, 0));
   const max = Math.max(...totals, 1);
 
@@ -165,7 +167,7 @@ export function StackedBarCard({ data }: { data: StackedBarData }) {
             <div key={bar.label}>
               <div className="mb-1 flex items-center justify-between text-xs text-ink/65">
                 <span>{bar.label}</span>
-                <span>{Math.round(total).toLocaleString()}</span>
+                <span>{formatMoney(total)}</span>
               </div>
               <div className="flex h-3 overflow-hidden rounded-full bg-canvas" style={{ width: `${Math.max(widthScale, 18)}%` }}>
                 {bar.segments.map((segment, index) => {
@@ -178,7 +180,7 @@ export function StackedBarCard({ data }: { data: StackedBarData }) {
                         width: `${segmentWidth}%`,
                         backgroundColor: palette[index % palette.length],
                       }}
-                      title={`${segment.label}: ${Math.round(segment.value).toLocaleString()}`}
+                      title={`${segment.label}: ${formatMoney(segment.value)}`}
                     />
                   );
                 })}
@@ -193,6 +195,7 @@ export function StackedBarCard({ data }: { data: StackedBarData }) {
 
 export function SpendTrendCard({ data }: { data: LineChartData }) {
   const [period, setPeriod] = useState<"1m" | "3m" | "6m">("6m");
+  const formatMoney = useFormatMoney();
 
   // Simulate filtered data based on period
   const filteredData = (() => {
@@ -287,7 +290,7 @@ export function SpendTrendCard({ data }: { data: LineChartData }) {
           {filteredData.points.slice(0, 4).map((point) => (
             <div key={point.label} className="px-2 py-1 rounded-lg bg-canvas/50">
               <div className="font-mono font-semibold text-ink/80">{point.label}</div>
-              <div className="text-ink/60">₹{Math.round(point.value).toLocaleString()}</div>
+              <div className="text-ink/60">{formatMoney(point.value)}</div>
             </div>
           ))}
         </div>

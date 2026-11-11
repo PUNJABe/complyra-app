@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, Check, Edit2 } from "lucide-react";
 import Link from "next/link";
+import { useFormatMoney } from "@/lib/use-format-money";
 
 interface Budget {
   category: string;
@@ -39,6 +40,7 @@ function initializeAnalysis(): {
 
 export default function AIPolicyPage() {
   const router = useRouter();
+  const formatMoney = useFormatMoney();
   const [analysis] = useState<Analysis | null>(
     () => initializeAnalysis().analysis,
   );
@@ -116,7 +118,7 @@ export default function AIPolicyPage() {
                 Recommended monthly spend
               </p>
               <p className="text-4xl font-bold text-ink mt-2">
-                ₹{totalMonthly.toLocaleString()}
+                {formatMoney(totalMonthly)}
               </p>
             </div>
             <div className="rounded-full bg-accent/10 p-3">
@@ -143,12 +145,12 @@ export default function AIPolicyPage() {
                 <div className="flex-1">
                   <p className="font-medium text-ink">{budget.category}</p>
                   <p className="text-xs text-ink/60 mt-1">
-                    Based on avg ₹{budget.baseAverage.toLocaleString()}/month
+                    Based on avg {formatMoney(budget.baseAverage)}/month
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-lg font-semibold text-ink">
-                    ₹{budget.suggestedMonthly.toLocaleString()}
+                    {formatMoney(budget.suggestedMonthly)}
                   </p>
                   <p className="text-xs text-ink/60 mt-1">
                     {Math.round((budget.suggestedMonthly / totalMonthly) * 100)}

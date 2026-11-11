@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
         basePath: process.env.NEXT_PUBLIC_BASE_PATH || "",
       }
     : {}),
-  serverExternalPackages: ["oracledb", "nodemailer"],
+  serverExternalPackages: ["oracledb", "nodemailer", "pdf-parse"],
   ...(staticExport
     ? {}
     : {

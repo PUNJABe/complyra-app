@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock3, MessageSquareText, Send, Sparkles } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
+import { useCurrency } from "@/lib/currency-context";
+import { formatChatAnswer } from "@/lib/format-chat-answer";
 type Status = {
   lastStatementAt: string | null;
   dueAt: string;
@@ -19,6 +21,8 @@ export function WorkspaceAssistant() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const router = useRouter();
+  const { currency, exchangeRate, rateUpdatedAt } = useCurrency();
+  const currencyReady = currency === "INR" || rateUpdatedAt !== null;
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -66,7 +70,7 @@ export function WorkspaceAssistant() {
   }, [router]);
   async function ask(event: FormEvent) {
     event.preventDefault();
-    if (!prompt.trim() || busy) return;
+    if (!prompt.trim() || busy || !currencyReady) return;
     const question = prompt.trim();
     setPrompt("");
     setBusy(true);
@@ -80,6 +84,8 @@ export function WorkspaceAssistant() {
         body: JSON.stringify({
           prompt: question,
           messages: messages.slice(-6),
+          currency,
+          exchangeRate,
         }),
       });
       const data = await response.json();
@@ -142,7 +148,7 @@ export function WorkspaceAssistant() {
         <p className="flex items-center gap-2 text-xs font-semibold">
           <MessageSquareText size={15} /> Ask about your finances
         </p>
-        <p className="mt-2 text-[10px] leading-5 text-ink/50">
+        <p className="mt-2 text-[11px] leading-5 text-ink/50">
           Statement-based assistance. Enable external AI in Settings for
           additional help. Check suggestions before acting.
         </p>
@@ -153,9 +159,13 @@ export function WorkspaceAssistant() {
           {messages.slice(-10).map((message, index) => (
             <div
               key={index}
-              className={`whitespace-pre-wrap rounded-xl p-3 text-xs leading-6 ${message.role === "user" ? "bg-emerald-500/10" : "border border-ink/10 bg-canvas"}`}
+              className={`rounded-xl p-3 text-xs leading-6 ${message.role === "user" ? "bg-emerald-500/10" : "border border-ink/10 bg-canvas"}`}
             >
-              {message.content}
+              {formatChatAnswer(message.content).map((line, lineIndex) => (
+                <p key={`${index}-${lineIndex}`} className="min-h-5">
+                  {line}
+                </p>
+              ))}
             </div>
           ))}
           {!messages.length && (
@@ -189,7 +199,7 @@ export function WorkspaceAssistant() {
             className="min-w-0 flex-1 rounded-xl border border-ink/20 bg-canvas p-3 text-xs"
           />
           <button
-            disabled={busy || !prompt.trim()}
+            disabled={busy || !prompt.trim() || !currencyReady}
             aria-label="Send question"
             className="rounded-xl bg-emerald-900 px-3 text-white disabled:opacity-50"
           >
@@ -197,7 +207,7 @@ export function WorkspaceAssistant() {
           </button>
         </form>
         <Link
-          className="mt-3 inline-block text-[10px] text-ink/50 underline"
+          className="mt-3 inline-block text-[11px] text-ink/50 underline"
           href="/dashboard/chat"
         >
           Open full conversation

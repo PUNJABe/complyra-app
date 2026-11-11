@@ -57,6 +57,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [newClient, setNewClient] = useState("");
+  const [changingMode, setChangingMode] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState("");
 
   const loadWorkspace = async () => {
     const [workspaceResponse, complianceResponse] = await Promise.all([
@@ -93,14 +95,27 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateMode = async (mode: WorkspaceMode) => {
-    const response = await apiFetch("/api/workspace", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode }),
-    });
-    if (response.ok) {
+    if (!workspace || workspace.mode === mode || changingMode) return;
+    const previous = workspace;
+    setWorkspaceError("");
+    setWorkspace({ ...workspace, mode });
+    setChangingMode(true);
+    try {
+      const response = await apiFetch("/api/workspace", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+      if (!response.ok)
+        throw new Error("Could not switch workspace mode. Please try again.");
       setWorkspace((await response.json()) as WorkspaceContextPayload);
-      router.refresh();
+    } catch (error) {
+      setWorkspace(previous);
+      setWorkspaceError(
+        error instanceof Error ? error.message : "Could not switch mode.",
+      );
+    } finally {
+      setChangingMode(false);
     }
   };
 
@@ -112,7 +127,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     });
     if (response.ok) {
       setWorkspace((await response.json()) as WorkspaceContextPayload);
-      router.refresh();
     }
   };
 
@@ -127,7 +141,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     if (response.ok) {
       setWorkspace((await response.json()) as WorkspaceContextPayload);
       setNewClient("");
-      router.refresh();
     }
   };
 
@@ -155,7 +168,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             {!sidebarCollapsed && (
               <div>
                 <p className="text-sm font-semibold text-ink">Complyra</p>
-                <p className="text-[11px] text-ink/60">Secure Finance OS</p>
+                <p className="text-xs text-ink/60">Secure Finance OS</p>
               </div>
             )}
           </div>
@@ -244,17 +257,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <div className="rounded-full border border-ink/15 bg-canvas/70 p-1 text-sm">
                 <button
                   type="button"
+                  disabled={!workspace || changingMode}
+                  aria-pressed={workspace?.mode === "personal"}
                   onClick={() => updateMode("personal")}
-                  className={`rounded-full px-3 py-1 ${workspace?.mode === "personal" ? "bg-[#1E3A8A] text-white" : "text-ink/70"}`}
+                  className={`rounded-full px-3 py-1 disabled:cursor-wait ${workspace?.mode === "personal" ? "bg-[#1E3A8A] text-white" : "text-ink/70"}`}
                 >
-                  Individual
+                  {changingMode && workspace?.mode === "personal"
+                    ? "Saving..."
+                    : "Individual"}
                 </button>
                 <button
                   type="button"
+                  disabled={!workspace || changingMode}
+                  aria-pressed={workspace?.mode === "business"}
                   onClick={() => updateMode("business")}
-                  className={`rounded-full px-3 py-1 ${workspace?.mode !== "personal" ? "bg-[#1E3A8A] text-white" : "text-ink/70"}`}
+                  className={`rounded-full px-3 py-1 disabled:cursor-wait ${workspace?.mode !== "personal" ? "bg-[#1E3A8A] text-white" : "text-ink/70"}`}
                 >
-                  Company
+                  {changingMode && workspace?.mode === "business"
+                    ? "Saving..."
+                    : "Company"}
                 </button>
               </div>
 
@@ -290,6 +311,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
             </div>
           </div>
+          {workspaceError && (
+            <p role="alert" className="mt-3 text-xs text-rose-600">
+              {workspaceError}
+            </p>
+          )}
         </header>
 
         <section className="rounded-3xl border border-ink/10 bg-white/86 p-4 md:p-5">

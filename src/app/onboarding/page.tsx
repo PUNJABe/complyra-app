@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Lock, Zap, Settings, ChevronRight, Upload } from "lucide-react";
 import type { WorkspaceMode } from "@/lib/types";
 import { apiFetch } from "@/lib/api-client";
+import { useFormatMoney } from "@/lib/use-format-money";
 
 interface AnalysisResult {
   totalTransactions: number;
@@ -25,6 +26,7 @@ interface AnalysisResult {
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const formatMoney = useFormatMoney();
   const [mode, setMode] = useState<WorkspaceMode>("personal");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -156,7 +158,7 @@ export default function OnboardingPage() {
                   "Bank CSV",
                   "Credit Card CSV",
                   "Expense Excel",
-                  "PDF Records",
+                  "Text-based PDF",
                 ].map((fmt) => (
                   <div
                     key={fmt}
@@ -222,7 +224,7 @@ export default function OnboardingPage() {
               <div className="rounded-xl bg-canvas/60 p-4">
                 <p className="text-xs text-ink/60 font-medium">Avg Amount</p>
                 <p className="text-2xl font-bold text-ink mt-1">
-                  ₹{analysis.averageTransaction.toLocaleString()}
+                  {formatMoney(analysis.averageTransaction)}
                 </p>
               </div>
               <div className="rounded-xl bg-canvas/60 p-4">
@@ -260,7 +262,7 @@ export default function OnboardingPage() {
                         />
                       </div>
                       <span className="text-ink/60 font-mono text-xs w-12 text-right">
-                        ₹{cat.total.toLocaleString()}
+                        {formatMoney(cat.total)}
                       </span>
                     </div>
                   </div>

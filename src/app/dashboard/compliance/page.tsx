@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import type { CopilotPayload, PolicyPayload } from "@/lib/types";
 import { Toast } from "@/components/app/toast";
-import { useFormatMoney } from "@/lib/use-format-money";
+import {
+  useDisplayCurrencyQuery,
+  useFormatMoney,
+} from "@/lib/use-format-money";
 import { apiFetch } from "@/lib/api-client";
 
 export default function CompliancePage() {
@@ -17,11 +20,16 @@ export default function CompliancePage() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const formatMoney = useFormatMoney();
+  const { ready: currencyReady, search: currencySearch } =
+    useDisplayCurrencyQuery();
 
   useEffect(() => {
+    if (!currencyReady) return;
     const run = async () => {
       try {
-        const response = await apiFetch("/api/policy", { cache: "no-store" });
+        const response = await apiFetch(`/api/policy?${currencySearch}`, {
+          cache: "no-store",
+        });
         if (!response.ok)
           throw new Error("Failed to load compliance page data.");
         setData((await response.json()) as PolicyPayload);
@@ -35,7 +43,7 @@ export default function CompliancePage() {
     };
 
     void run();
-  }, []);
+  }, [currencyReady, currencySearch]);
 
   const score = useMemo(() => {
     if (!data) return 0;
@@ -49,7 +57,9 @@ export default function CompliancePage() {
     setError("");
 
     try {
-      const response = await apiFetch("/api/copilot", { cache: "no-store" });
+      const response = await apiFetch(`/api/copilot?${currencySearch}`, {
+        cache: "no-store",
+      });
       const payload = (await response.json()) as CopilotPayload & {
         error?: string;
       };
@@ -77,7 +87,7 @@ export default function CompliancePage() {
     setError("");
 
     try {
-      const response = await apiFetch("/api/copilot/apply", {
+      const response = await apiFetch(`/api/copilot/apply?${currencySearch}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recommendationId }),

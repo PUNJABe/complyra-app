@@ -29,16 +29,29 @@ export async function POST(request: NextRequest) {
     if (
       !fileName.endsWith(".csv") &&
       !fileName.endsWith(".xlsx") &&
-      !fileName.endsWith(".xls")
+      !fileName.endsWith(".xls") &&
+      !fileName.endsWith(".pdf")
     ) {
       return NextResponse.json(
-        { error: "Only CSV, XLSX, or XLS files are supported at this time" },
+        { error: "Only CSV, XLSX, XLS, or text-based PDF files are supported." },
         { status: 400 },
       );
     }
 
-    // Parse the file
-    const transactions = await parseStatementFile(file);
+    let transactions: Awaited<ReturnType<typeof parseStatementFile>>;
+    try {
+      transactions = await parseStatementFile(file);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unable to parse this statement file.",
+        },
+        { status: 400 },
+      );
+    }
 
     if (transactions.length === 0) {
       return NextResponse.json(

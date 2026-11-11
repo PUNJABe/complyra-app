@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 
 import type { CopilotPayload } from "@/lib/types";
-import { useFormatMoney } from "@/lib/use-format-money";
+import {
+  useDisplayCurrencyQuery,
+  useFormatMoney,
+} from "@/lib/use-format-money";
 import { apiFetch } from "@/lib/api-client";
 
 export default function CopilotPage() {
@@ -12,11 +15,16 @@ export default function CopilotPage() {
   const [status, setStatus] = useState("");
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const formatMoney = useFormatMoney();
+  const { ready: currencyReady, search: currencySearch } =
+    useDisplayCurrencyQuery();
 
   useEffect(() => {
+    if (!currencyReady) return;
     const run = async () => {
       try {
-        const response = await apiFetch("/api/copilot", { cache: "no-store" });
+        const response = await apiFetch(`/api/copilot?${currencySearch}`, {
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error("Failed to load copilot insights.");
         setData((await response.json()) as CopilotPayload);
       } catch (requestError) {
@@ -25,7 +33,7 @@ export default function CopilotPage() {
     };
 
     run();
-  }, []);
+  }, [currencyReady, currencySearch]);
 
   if (error) return <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>;
   if (!data) return <p className="text-sm text-ink/70">Loading copilot insights...</p>;
@@ -36,7 +44,7 @@ export default function CopilotPage() {
     setError("");
 
     try {
-      const response = await apiFetch("/api/copilot/apply", {
+      const response = await apiFetch(`/api/copilot/apply?${currencySearch}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recommendationId }),

@@ -5,7 +5,9 @@ import { CheckCircle2, Search } from "lucide-react";
 import { CATEGORIES } from "@/lib/transaction-categories";
 import type { StoredTransaction } from "@/lib/storage";
 import { apiFetch } from "@/lib/api-client";
+import { useFormatMoney } from "@/lib/use-format-money";
 export default function TransactionsPage() {
+  const formatMoney = useFormatMoney();
   const [transactions, setTransactions] = useState<StoredTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -94,6 +96,7 @@ export default function TransactionsPage() {
             <ReviewCard
               key={transaction.id}
               transaction={transaction}
+              formatMoney={formatMoney}
               saved={() => {
                 void load();
                 window.dispatchEvent(new Event("statement-updated"));
@@ -116,9 +119,11 @@ export default function TransactionsPage() {
 }
 function ReviewCard({
   transaction,
+  formatMoney,
   saved,
 }: {
   transaction: StoredTransaction;
+  formatMoney: (amount: number) => string;
   saved: () => void;
 }) {
   const [remark, setRemark] = useState(transaction.remark || "");
@@ -160,7 +165,7 @@ function ReviewCard({
           <h3 className="break-words text-sm font-semibold">
             {transaction.merchant}
           </h3>
-          <p className="mt-1 text-[11px] text-ink/50">
+          <p className="mt-1 text-xs text-ink/50">
             {transaction.date} ·{" "}
             {transaction.direction === "credit" ? "Credit" : "Debit"} ·{" "}
             {transaction.category}
@@ -168,12 +173,9 @@ function ReviewCard({
         </div>
         <div className="text-right">
           <p className="text-sm font-semibold">
-            {new Intl.NumberFormat("en-IN", {
-              style: "currency",
-              currency: "INR",
-            }).format(transaction.amount)}
+            {formatMoney(transaction.amount)}
           </p>
-          <p className="mt-1 text-[10px] text-ink/50">
+          <p className="mt-1 text-[11px] text-ink/50">
             {transaction.categorySource === "user"
               ? "Confirmed by you"
               : `${Math.round((transaction.confidence || 0) * 100)}% rule confidence`}

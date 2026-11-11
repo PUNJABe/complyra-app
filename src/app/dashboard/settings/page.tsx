@@ -127,7 +127,7 @@ export default function SettingsPage() {
             <button disabled={busy} className={`${button} mt-4`}>
               Save profile
             </button>
-            <p className="mt-3 text-[11px] text-ink/50">
+            <p className="mt-3 text-xs text-ink/50">
               Your verified email is your account identifier. Contact the
               operator if it needs correction.
             </p>

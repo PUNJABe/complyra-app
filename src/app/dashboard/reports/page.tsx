@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, Search } from "lucide-react";
 import type { PolicyPayload } from "@/lib/types";
 import { exportToPDF, generateReport } from "@/lib/export-utils";
-import { useFormatMoney } from "@/lib/use-format-money";
+import {
+  useDisplayCurrencyQuery,
+  useFormatMoney,
+} from "@/lib/use-format-money";
 import { apiFetch } from "@/lib/api-client";
 
 type SeverityFilter = "all" | "high" | "medium";
@@ -16,11 +19,16 @@ export default function ReportsPage() {
   const [sortByAmountDesc, setSortByAmountDesc] = useState(true);
   const [error, setError] = useState("");
   const formatMoney = useFormatMoney();
+  const { ready: currencyReady, search: currencySearch } =
+    useDisplayCurrencyQuery();
 
   useEffect(() => {
+    if (!currencyReady) return;
     const run = async () => {
       try {
-        const response = await apiFetch("/api/policy", { cache: "no-store" });
+        const response = await apiFetch(`/api/policy?${currencySearch}`, {
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error("Failed to load reports data.");
         setData((await response.json()) as PolicyPayload);
 
@@ -39,7 +47,7 @@ export default function ReportsPage() {
     };
 
     void run();
-  }, []);
+  }, [currencyReady, currencySearch]);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -86,7 +94,7 @@ export default function ReportsPage() {
         Severity: item.severity,
         Merchant: item.merchant,
         Issue: item.issue,
-        Amount: item.amount,
+        Amount: formatMoney(item.amount),
         Rule: item.explainability.ruleTriggered,
         Impact: item.explainability.impact,
       })),

@@ -151,12 +151,21 @@ test(
       assert.equal(home.status, 200);
       const html = await home.text();
       assert.match(html, /Make sense of/);
+      assert.match(
+        home.headers.get("content-security-policy")!,
+        /connect-src[^;]*https:\/\/open\.er-api\.com/,
+      );
       assert.match(home.headers.get("content-security-policy")!, /nonce-/);
       const nonce = /'nonce-([^']+)'/.exec(home.headers.get("content-security-policy")!)![1];
       const scripts = [...html.matchAll(/<script\b[^>]*>/g)].map(match => match[0]);
       assert.ok(scripts.length > 0);
       assert.ok(scripts.every(tag => tag.includes(`nonce="${nonce}"`)), "Next.js scripts must carry the request CSP nonce");
       assert.equal((await call("/api/transactions")).status, 401);
+      assert.deepEqual(await (await call("/api/auth/session")).json(), {
+        authenticated: false,
+        session: null,
+        expired: true,
+      });
       assert.equal((await call("/dashboard")).status, 307);
       assert.equal(
         (
@@ -210,6 +219,17 @@ test(
       assert.equal(
         (await call("/api/admin", "GET", undefined, admin)).status,
         200,
+      );
+      const parallelAccountReads = await Promise.all([
+        call("/api/auth/session", "GET", undefined, admin),
+        call("/api/workspace", "GET", undefined, admin),
+        call("/api/compliance", "GET", undefined, admin),
+        call("/api/reminders", "GET", undefined, admin),
+      ]);
+      assert.deepEqual(
+        parallelAccountReads.map((response) => response.status),
+        [200, 200, 200, 200],
+        "concurrent API requests must safely serialize local session updates",
       );
       assert.deepEqual(
         (await (await call("/api/overview", "GET", undefined, admin)).json())
@@ -268,6 +288,70 @@ test(
         body: form,
       });
       assert.equal(upload.status, 200, "statement should import");
+      const usdCopilotResponse = await call(
+        "/api/copilot?currency=USD&exchangeRate=0.01",
+        "GET",
+        undefined,
+        person,
+      );
+      assert.equal(usdCopilotResponse.status, 200);
+      const usdCopilot = await usdCopilotResponse.json();
+      assert.ok(
+        usdCopilot.recommendations.some((item: { insight: string }) =>
+          item.insight.includes("$"),
+        ),
+        "copilot narrative amounts use the selected display currency",
+      );
+      assert.ok(
+        usdCopilot.recommendations.every(
+          (item: { insight: string }) => !item.insight.includes("₹"),
+        ),
+      );
+      const invalidRate = await call(
+        "/api/copilot?currency=USD&exchangeRate=2",
+        "GET",
+        undefined,
+        person,
+      );
+      assert.equal(invalidRate.status, 400);
+      const usdPolicyResponse = await call(
+        "/api/policy?currency=USD&exchangeRate=0.01",
+        "GET",
+        undefined,
+        person,
+      );
+      assert.equal(usdPolicyResponse.status, 200);
+      const usdPolicy = await usdPolicyResponse.json();
+      assert.match(usdPolicy.findings[0].explainability.evidence, /\$/);
+      const usdChatResponse = await call(
+        "/api/chat",
+        "POST",
+        {
+          prompt: "Show top merchants by spend",
+          currency: "USD",
+          exchangeRate: 0.01,
+        },
+        person,
+      );
+      assert.equal(usdChatResponse.status, 200);
+      const usdChat = await usdChatResponse.json();
+      assert.match(usdChat.answer, /\$/);
+      assert.doesNotMatch(usdChat.answer, /₹/);
+      assert.equal(
+        (
+          await call(
+            "/api/chat",
+            "POST",
+            {
+              prompt: "Show top merchants by spend",
+              currency: "USD",
+              exchangeRate: 1,
+            },
+            person,
+          )
+        ).status,
+        400,
+      );
       const records = await (
         await call("/api/transactions", "GET", undefined, person)
       ).json();

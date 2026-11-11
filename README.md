@@ -8,7 +8,7 @@ A Next.js financial statement workspace with a public product website and verifi
 - Email verification **before account creation**, password recovery/change, memory-hard scrypt password hashing, opaque revocable sessions, origin checks, rate limits and server-side role checks. No demo-password login or user-selected administrator role.
 - Allow/block rules for email addresses and domains, and a separate admin panel for account access, aggregate operational analytics, security events and configuration status.
 - Private per-account data storage with development files or production PostgreSQL/Oracle adapters, authenticated AES-256-GCM encryption, database row locks, bind variables and stale-update checks. Existing mock records are not migrated into live accounts.
-- CSV/Excel imports with row/size limits, debit/credit tracking, confidence-aware category rules, duplicate/amount review prompts, transaction remarks, explicit category confirmation and optional remembered merchant rules.
+- CSV/Excel and text-based PDF imports with row/size limits, debit/credit tracking, confidence-aware category rules, duplicate/amount review prompts, transaction remarks, explicit category confirmation and optional remembered merchant rules. Scanned PDFs require OCR and are not supported.
 - A workspace-side assistant and optional OpenAI categorization suggestions. External AI processing is off until each user opts in. Unclear transactions still require human review.
 - In-app statement reminders 24 hours after signup/last import; opt-in email reminders through a secret-protected scheduler endpoint.
 - Actual profile saving, password controls, session revocation, data export, optional-processing preferences and account deletion.

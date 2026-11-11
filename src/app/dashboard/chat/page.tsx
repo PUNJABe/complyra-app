@@ -13,6 +13,8 @@ import type {
   WorkspaceContextPayload,
 } from "@/lib/types";
 import { apiFetch } from "@/lib/api-client";
+import { useCurrency } from "@/lib/currency-context";
+import { formatChatAnswer } from "@/lib/format-chat-answer";
 
 type ThreadMessage = {
   id: string;
@@ -37,6 +39,8 @@ export default function DashboardChatPage() {
   const [reasoning, setReasoning] =
     useState<ChatResponse["reasoning"]>(undefined);
   const [loading, setLoading] = useState(false);
+  const { currency, exchangeRate, rateUpdatedAt } = useCurrency();
+  const currencyReady = currency === "INR" || rateUpdatedAt !== null;
 
   useEffect(() => {
     const loadWorkspace = async () => {
@@ -65,17 +69,19 @@ export default function DashboardChatPage() {
           "Where am I overspending this month?",
           "Which transactions need a remark?",
           "Show my next month spending forecast",
+          "Show recurring merchants",
         ]
       : [
           "Which transactions need a remark?",
           "Summarize potential duplicate payments",
           "Show top merchants by spend",
+          "Show unclassified transactions",
         ];
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
     const trimmed = prompt.trim();
-    if (!trimmed) return;
+    if (!trimmed || !currencyReady) return;
 
     const userMessage: ThreadMessage = {
       id: crypto.randomUUID(),
@@ -97,6 +103,8 @@ export default function DashboardChatPage() {
             role: item.role,
             content: item.content,
           })) as ChatMessage[],
+          currency,
+          exchangeRate,
         }),
       });
 
@@ -166,7 +174,11 @@ export default function DashboardChatPage() {
                   : "border border-ink/12 bg-white text-ink/85"
               }`}
             >
-              {message.content}
+              {formatChatAnswer(message.content).map((line, lineIndex) => (
+                <p key={`${message.id}-${lineIndex}`} className="min-h-5">
+                  {line}
+                </p>
+              ))}
             </div>
           ))}
           {loading && <p className="text-sm text-ink/60">Thinking...</p>}
@@ -181,7 +193,7 @@ export default function DashboardChatPage() {
           />
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !currencyReady}
             className="rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-canvas transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Send

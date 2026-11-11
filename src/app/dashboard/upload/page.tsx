@@ -40,9 +40,9 @@ export default function UploadDataPage() {
         Start with your statement.
       </h2>
       <p className="text-sm leading-7 text-ink/60">
-        Upload an INR-denominated CSV or Excel statement. We will categorize
-        recognized payments and ask for your context on the ones that need a
-        closer look.
+        Upload an INR-denominated CSV, Excel, or text-based PDF statement. We
+        will categorize recognized payments and ask for your context on the
+        ones that need a closer look.
       </p>
       <form
         onSubmit={upload}
@@ -53,7 +53,7 @@ export default function UploadDataPage() {
           Choose a statement
           <input
             type="file"
-            accept=".csv,.xlsx,.xls"
+            accept=".csv,.xlsx,.xls,.pdf"
             required
             disabled={busy}
             onChange={(event) => {
@@ -67,8 +67,8 @@ export default function UploadDataPage() {
           Maximum 5 MB and 2,000 transactions. Include date, merchant or
           narration, and amount (or separate debit and credit) columns. Dates:
           YYYY-MM-DD or DD/MM/YYYY. Amount-only statements are treated as
-          expenses unless a credit direction is supplied. PDF import is not
-          supported.
+          expenses unless a credit direction is supplied. PDF must contain
+          selectable text; scanned image PDFs need OCR and cannot be imported.
         </p>
         <p className="text-xs leading-6 text-amber-700">
           Importing replaces your active statement. Export your records first if

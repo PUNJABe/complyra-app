@@ -4,18 +4,26 @@ import { useEffect, useState } from "react";
 import { Fragment } from "react";
 
 import type { PolicyPayload } from "@/lib/types";
-import { useFormatMoney } from "@/lib/use-format-money";
+import {
+  useDisplayCurrencyQuery,
+  useFormatMoney,
+} from "@/lib/use-format-money";
 import { apiFetch } from "@/lib/api-client";
 
 export default function DashboardPolicyPage() {
   const [data, setData] = useState<PolicyPayload | null>(null);
   const [error, setError] = useState("");
   const formatMoney = useFormatMoney();
+  const { ready: currencyReady, search: currencySearch } =
+    useDisplayCurrencyQuery();
 
   useEffect(() => {
+    if (!currencyReady) return;
     const run = async () => {
       try {
-        const response = await apiFetch("/api/policy", { cache: "no-store" });
+        const response = await apiFetch(`/api/policy?${currencySearch}`, {
+          cache: "no-store",
+        });
         if (!response.ok) throw new Error("Failed to load policy data.");
         const payload = (await response.json()) as PolicyPayload;
         setData(payload);
@@ -25,7 +33,7 @@ export default function DashboardPolicyPage() {
     };
 
     run();
-  }, []);
+  }, [currencyReady, currencySearch]);
 
   if (error) {
     return <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>;

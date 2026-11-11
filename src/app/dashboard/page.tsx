@@ -10,22 +10,24 @@ import {
 import type { OverviewPayload } from "@/lib/types";
 import type { StoredTransaction } from "@/lib/storage";
 import { apiFetch } from "@/lib/api-client";
-const money = (value: number) =>
-  new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 2,
-  }).format(value);
+import {
+  useDisplayCurrencyQuery,
+  useFormatMoney,
+} from "@/lib/use-format-money";
 export default function DashboardPage() {
+  const money = useFormatMoney();
+  const { ready: currencyReady, search: currencySearch } =
+    useDisplayCurrencyQuery();
   const [overview, setOverview] = useState<OverviewPayload | null>(null);
   const [transactions, setTransactions] = useState<StoredTransaction[]>([]);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (!currencyReady) return;
     let active = true;
     async function load() {
       try {
         const [a, b] = await Promise.all([
-          apiFetch("/api/overview", { cache: "no-store" }),
+          apiFetch(`/api/overview?${currencySearch}`, { cache: "no-store" }),
           apiFetch("/api/transactions", { cache: "no-store" }),
         ]);
         if (!a.ok || !b.ok)
@@ -48,7 +50,7 @@ export default function DashboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [currencyReady, currencySearch]);
   if (error)
     return (
       <p
@@ -75,7 +77,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <section className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-emerald-600/15 bg-emerald-500/5 p-6">
         <div>
-          <p className="text-[10px] font-semibold tracking-[.18em] text-emerald-700">
+          <p className="text-[11px] font-semibold tracking-[.18em] text-emerald-700">
             THE BIG PICTURE
           </p>
           <h2 className="mt-3 text-3xl font-medium tracking-tight">
@@ -108,13 +110,13 @@ export default function DashboardPage() {
           [
             "Transactions",
             String(transactions.length),
-            "Your statement records, without currency conversion",
+            "Original statement amounts are stored in INR",
           ],
         ].map(([label, value, hint]) => (
           <article key={label} className="rounded-2xl border border-ink/10 p-5">
             <p className="text-xs text-ink/55">{label}</p>
             <p className="mt-3 text-2xl font-medium tracking-tight">{value}</p>
-            <p className="mt-2 text-[10px] text-ink/45">{hint}</p>
+            <p className="mt-2 text-[11px] text-ink/45">{hint}</p>
           </article>
         ))}
       </section>
@@ -125,8 +127,9 @@ export default function DashboardPage() {
             Your workspace is ready for its first statement.
           </h3>
           <p className="mx-auto mt-3 max-w-md text-xs leading-6 text-ink/55">
-            Import an INR CSV or Excel statement. Your records are private to
-            this account. No sample transactions are mixed into your reports.
+            Import an INR CSV, Excel, or text-based PDF statement. Your records
+            are private to this account. No sample transactions are mixed into
+            your reports.
           </p>
           <Link
             href="/dashboard/upload"
@@ -181,7 +184,7 @@ export default function DashboardPage() {
           </section>
         </>
       )}
-      <p className="flex items-start gap-2 rounded-xl border border-ink/10 p-4 text-[10px] leading-6 text-ink/50">
+      <p className="flex items-start gap-2 rounded-xl border border-ink/10 p-4 text-[11px] leading-6 text-ink/50">
         <ShieldCheck size={16} className="mt-1 shrink-0" />
         Review prompts are statement-based signals. GST validity, invoices,
         statutory compliance, and tax entitlements cannot be established from a

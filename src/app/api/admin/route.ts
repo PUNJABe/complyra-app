@@ -68,8 +68,10 @@ export async function GET() {
       database:
         process.env.COMPLYRA_STORAGE_MODE === "oracle"
           ? "Oracle"
-          : "Local development files",
-      email: Boolean(process.env.SMTP_HOST),
+          : process.env.COMPLYRA_STORAGE_MODE === "postgres"
+            ? "PostgreSQL"
+            : "Local development files",
+      email: Boolean(process.env.SMTP_HOST || process.env.RESEND_API_KEY),
       ai: Boolean(process.env.OPENAI_API_KEY),
       policiesReady: Boolean(
         process.env.PRIVACY_CONTACT_EMAIL &&

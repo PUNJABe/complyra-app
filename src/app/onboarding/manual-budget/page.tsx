@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
 import Link from "next/link";
+import { useFormatMoney, useCurrencySymbol } from "@/lib/use-format-money";
+import { useCurrency } from "@/lib/currency-context";
 
 interface BudgetLine {
   id: string;
@@ -24,6 +26,10 @@ const DEFAULT_CATEGORIES = [
 
 export default function ManualBudgetPage() {
   const router = useRouter();
+  const formatMoney = useFormatMoney();
+  const currencySymbol = useCurrencySymbol();
+  const { exchangeRate, currency, rateUpdatedAt } = useCurrency();
+  const exchangeRateReady = currency === "INR" || rateUpdatedAt !== null;
   const [budgets, setBudgets] = useState<BudgetLine[]>(
     DEFAULT_CATEGORIES.map((cat, i) => ({
       id: `${i}`,
@@ -113,6 +119,11 @@ export default function ManualBudgetPage() {
         <p className="mt-2 text-sm leading-relaxed text-ink/70">
           Enter your monthly income and budget limits for each category.
         </p>
+        {!exchangeRateReady && (
+          <p role="status" className="mt-2 text-xs text-ink/55">
+            Updating the exchange rate before enabling budget inputs.
+          </p>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -123,11 +134,19 @@ export default function ManualBudgetPage() {
               Monthly Income
             </span>
             <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold text-ink/60">₹</span>
+              <span className="text-lg font-semibold text-ink/60">{currencySymbol}</span>
               <input
                 type="number"
-                value={income || ""}
-                onChange={(e) => setIncome(parseInt(e.target.value) || 0)}
+                step="0.01"
+                value={
+                  exchangeRateReady && income
+                    ? (income * exchangeRate).toFixed(2)
+                    : ""
+                }
+                disabled={!exchangeRateReady}
+                onChange={(e) =>
+                  setIncome((Number(e.target.value) || 0) / exchangeRate)
+                }
                 placeholder="60000"
                 className="flex-1 rounded-lg border border-ink/20 bg-white px-4 py-3 text-lg font-mono font-semibold outline-none ring-accent/35 transition focus:ring-4"
               />
@@ -152,12 +171,21 @@ export default function ManualBudgetPage() {
                   placeholder="Category name"
                 />
                 <div className="flex items-center gap-1">
-                  <span className="text-sm text-ink/60">₹</span>
+                  <span className="text-sm text-ink/60">{currencySymbol}</span>
                   <input
                     type="number"
-                    value={budget.amount || ""}
+                    step="0.01"
+                    value={
+                    exchangeRateReady && budget.amount
+                      ? (budget.amount * exchangeRate).toFixed(2)
+                      : ""
+                    }
+                    disabled={!exchangeRateReady}
                     onChange={(e) =>
-                      updateBudget(budget.id, parseInt(e.target.value) || 0)
+                      updateBudget(
+                        budget.id,
+                        (Number(e.target.value) || 0) / exchangeRate,
+                      )
                     }
                     className="w-24 rounded-lg border border-ink/20 bg-white px-2 py-2 text-sm font-mono font-semibold text-right outline-none ring-accent/35 transition focus:ring-4"
                     placeholder="0"
@@ -186,7 +214,7 @@ export default function ManualBudgetPage() {
           <div className="rounded-lg border border-ink/10 bg-canvas/60 p-4 text-center">
             <p className="text-xs text-ink/60 font-medium">Total Budget</p>
             <p className="text-2xl font-bold text-ink mt-2">
-              ₹{totalBudget.toLocaleString()}
+              {formatMoney(totalBudget)}
             </p>
           </div>
           <div className="rounded-lg border border-ink/10 bg-canvas/60 p-4 text-center">
@@ -208,7 +236,7 @@ export default function ManualBudgetPage() {
               className="text-2xl font-bold mt-2"
               style={{ color: remaining >= 0 ? "#059669" : "#dc2626" }}
             >
-              ₹{remaining.toLocaleString()}
+              {formatMoney(remaining)}
             </p>
           </div>
         </div>
@@ -216,7 +244,7 @@ export default function ManualBudgetPage() {
         {/* Actions */}
         <button
           onClick={onSave}
-          disabled={saving || income === 0}
+          disabled={saving || income === 0 || !exchangeRateReady}
           className="w-full rounded-full bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:opacity-60 flex items-center justify-center gap-2"
         >
           <Save className="h-4 w-4" /> Save & Continue

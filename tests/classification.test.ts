@@ -57,6 +57,26 @@ test("merchant boundaries, ambiguity and learned rules", async () => {
     ),
   );
 });
+test("classifies common app platforms and flags explicit person transfers", () => {
+  assert.equal(
+    classifyTransaction({ ...base, merchant: "UPI-BLINKIT STORE" }).category,
+    "Groceries & Quick Commerce",
+  );
+  assert.equal(
+    classifyTransaction({ ...base, merchant: "UPI-SWIGGY ORDER" }).category,
+    "Food Delivery",
+  );
+  const transfer = classifyTransaction({
+    ...base,
+    merchant: "UPI-PAYMENT TO PERSON",
+  });
+  assert.equal(transfer.category, "Transfer");
+  assert.equal(transfer.needsReview, true);
+  assert.equal(
+    classifyTransaction({ ...base, merchant: "UPI UNKNOWN MERCHANT" }).category,
+    "Other",
+  );
+});
 test("CSV handles quoted descriptions, debit/credit and invalid dates", () => {
   const rows = parseCSV(
     'date,narration,debit,credit\n31/10/2026,"Office, supplies",100,\n2026-10-30,Salary,,2000',

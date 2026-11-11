@@ -1,27 +1,34 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 
 import type { IntegrationsPayload } from "@/lib/types";
 import { apiFetch } from "@/lib/api-client";
+import { useDisplayCurrencyQuery } from "@/lib/use-format-money";
 
 export default function IntegrationsPage() {
   const [data, setData] = useState<IntegrationsPayload | null>(null);
   const [channel, setChannel] = useState<"slack" | "whatsapp">("slack");
   const [message, setMessage] = useState(
-    "⚠️ Policy violation: Rs 12,000 alcohol expense detected",
+    "Complyra test alert: notification delivery check.",
   );
   const [recipient, setRecipient] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const { ready: currencyReady, search: currencySearch } =
+    useDisplayCurrencyQuery();
 
-  const loadData = async () => {
-    const response = await apiFetch("/api/integrations", { cache: "no-store" });
+  const loadData = useCallback(async () => {
+    if (!currencyReady) return;
+    const response = await apiFetch(`/api/integrations?${currencySearch}`, {
+      cache: "no-store",
+    });
     if (!response.ok) throw new Error("Failed to load integrations.");
     setData((await response.json()) as IntegrationsPayload);
-  };
+  }, [currencyReady, currencySearch]);
 
   useEffect(() => {
+    if (!currencyReady) return;
     const run = async () => {
       try {
         await loadData();
@@ -34,7 +41,7 @@ export default function IntegrationsPage() {
       }
     };
     run();
-  }, []);
+  }, [currencyReady, loadData]);
 
   const sendTestAlert = async (event: FormEvent) => {
     event.preventDefault();

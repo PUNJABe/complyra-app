@@ -1,12 +1,13 @@
 import { generateOpenAIJSON, hasOpenAIKey } from "@/lib/openai";
 import type { StoredTransaction } from "@/lib/storage";
 import { CATEGORIES } from "@/lib/transaction-categories";
+import { APP_PLATFORMS, identifyAppPlatform } from "@/lib/app-platforms";
 export { CATEGORIES } from "@/lib/transaction-categories";
 const rules: [string, RegExp][] = [
-  [
-    "Food",
-    /\b(swiggy|zomato|starbucks|mcdonalds|restaurant|cafe|kfc|subway)\b/i,
-  ],
+  ...APP_PLATFORMS.map(
+    ({ category, pattern }) => [category, pattern] as [string, RegExp],
+  ),
+  ["Food", /\b(starbucks|mcdonalds|restaurant|cafe|kfc|subway)\b/i],
   [
     "Travel",
     /\b(uber|ola|airbnb|makemytrip|indigo|irctc|airline|taxi|hotel)\b/i,
@@ -54,12 +55,43 @@ export function classifyTransaction(
       needsReview: false,
       reviewReasons: [],
     };
-  const candidates = rules.filter(([, expression]) =>
-    expression.test(transaction.merchant),
-  );
   const supplied = CATEGORIES.find(
     (category) => category.toLowerCase() === transaction.category.toLowerCase(),
   );
+  const platform = identifyAppPlatform(transaction.merchant);
+  const matchingPlatforms = APP_PLATFORMS.filter(({ pattern }) =>
+    pattern.test(transaction.merchant),
+  );
+  const transferCue =
+    /\b(personal transfer|self transfer|fund transfer|p2p|payment from|payment to|received from|sent to)\b/i.test(
+      transaction.merchant,
+    );
+  const candidates: [string, RegExp][] =
+    matchingPlatforms.length > 1
+      ? matchingPlatforms.reduce<[string, RegExp][]>((matches, item) => {
+          if (!matches.some(([category]) => category === item.category))
+            matches.push([item.category, item.pattern]);
+          return matches;
+        }, [])
+      : platform
+        ? [[platform.category, platform.pattern]]
+        : rules.filter(([, expression]) => expression.test(transaction.merchant));
+  if (
+    transferCue &&
+    !platform &&
+    (!supplied || supplied === "Other" || supplied === "Transfer")
+  ) {
+    return {
+      ...transaction,
+      category: "Transfer",
+      confidence: 0.8,
+      categorySource: "rule",
+      needsReview: true,
+      reviewReasons: [
+        "Confirm whether this transfer is a personal expense or movement between accounts.",
+      ],
+    };
+  }
   const conflicting =
     supplied &&
     supplied !== "Other" &&

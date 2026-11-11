@@ -36,6 +36,9 @@ export function LoginScreen({
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   useEffect(() => {
+    void apiFetch("/api/auth/session", { cache: "no-store" }).catch(() => {
+      // Best-effort warm-up lets a sleeping free-tier API start before submit.
+    });
     const value =
       new URLSearchParams(window.location.hash.slice(1)).get("token") || "";
     if (value) {
@@ -72,7 +75,6 @@ export function LoginScreen({
         throw new Error(data.error || "Request failed. Please try again.");
       if (mode === "login") {
         router.push("/dashboard");
-        router.refresh();
       } else {
         setMessage(data.message || "Done.");
         setPassword("");
@@ -261,7 +263,9 @@ export function LoginScreen({
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-900 p-3 text-sm font-semibold text-white disabled:opacity-50"
               >
                 {busy
-                  ? "Please wait..."
+                  ? mode === "login"
+                    ? "Signing in..."
+                    : "Please wait..."
                   : mode === "register"
                     ? "Send verification email"
                     : mode === "verify"

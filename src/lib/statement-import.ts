@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { parseStatementFile } from "@/lib/statement-parser";
 import { replaceTransactions } from "@/lib/storage";
 export async function importStatement(file: File) {
-  if (!/\.(csv|xlsx|xls)$/i.test(file.name))
+  if (!/\.(csv|xlsx|xls|pdf)$/i.test(file.name))
     throw new Error(
-      "Upload a CSV, XLSX, or XLS statement. PDF import is not supported.",
+      "Upload a CSV, XLSX, XLS, or text-based PDF statement.",
     );
   const parsed = await parseStatementFile(file);
   if (!parsed.length)

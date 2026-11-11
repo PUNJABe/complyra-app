@@ -2,6 +2,7 @@ import { apiAccessError } from "@/lib/api-access";
 import { NextResponse } from "next/server";
 
 import { getCopilotPayload } from "@/lib/analytics";
+import { parseDisplayCurrency } from "@/lib/display-currency";
 import { addPolicyRule } from "@/lib/storage";
 import type { PolicyRule } from "@/lib/types";
 
@@ -18,7 +19,7 @@ function recommendationToRule(rec: {
 
   let condition = "If risk score exceeds team baseline";
   if (lower.includes("travel"))
-    condition = "If category is travel and amount > Rs 15,000";
+    condition = "If category is travel and amount exceeds the configured limit";
   if (lower.includes("meal") || lower.includes("mobility")) {
     condition =
       "If category is meals or mobility and monthly spend grows > 15%";
@@ -48,7 +49,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const payload = await getCopilotPayload();
+  const display = parseDisplayCurrency(request);
+  if (!display)
+    return NextResponse.json(
+      { error: "Choose INR or provide a valid INR-to-USD exchange rate." },
+      { status: 400 },
+    );
+  const payload = await getCopilotPayload(
+    display.currency,
+    display.exchangeRate,
+  );
   const rec = payload.recommendations.find(
     (item) => item.id === body.recommendationId,
   );

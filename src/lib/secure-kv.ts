@@ -5,12 +5,25 @@ import {
   randomBytes,
   randomUUID,
 } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  open as openFile,
+  readFile,
+  rename,
+  stat,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import oracledb from "oracledb";
 import pg from "pg";
 
-const queues = new Map<string, Promise<unknown>>();
+const runtime = globalThis as typeof globalThis & {
+  __complyraSecureKvQueues?: Map<string, Promise<unknown>>;
+};
+const queues =
+  runtime.__complyraSecureKvQueues ??
+  (runtime.__complyraSecureKvQueues = new Map());
 const directory = () =>
   process.env.COMPLYRA_DATA_DIR ||
   path.join(process.cwd(), ".complyra", "secure");
@@ -153,6 +166,68 @@ function filePath(key: string) {
   );
 }
 
+async function withFileLock<R>(target: string, operation: () => Promise<R>) {
+  const lockPath = `${target}.lock`;
+  const deadline = Date.now() + 15000;
+
+  while (true) {
+    let handle;
+    try {
+      handle = await openFile(lockPath, "wx", 0o600);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+
+      let lockStat;
+      let owner: number;
+      try {
+        lockStat = await stat(lockPath);
+        owner = Number((await readFile(lockPath, "utf8")).trim());
+      } catch (readError) {
+        if ((readError as NodeJS.ErrnoException).code === "ENOENT") continue;
+        throw readError;
+      }
+
+      let ownerAlive = false;
+      if (Number.isSafeInteger(owner) && owner > 0) {
+        try {
+          process.kill(owner, 0);
+          ownerAlive = true;
+        } catch (processError) {
+          const code = (processError as NodeJS.ErrnoException).code;
+          if (code === "EPERM") ownerAlive = true;
+          else if (code !== "ESRCH") throw processError;
+        }
+      }
+      if (Date.now() - lockStat.mtimeMs > 60000 && !ownerAlive) {
+        try {
+          await unlink(lockPath);
+        } catch (unlinkError) {
+          if ((unlinkError as NodeJS.ErrnoException).code !== "ENOENT")
+            throw unlinkError;
+        }
+        continue;
+      }
+      if (Date.now() >= deadline)
+        throw new Error("Local storage is busy. Please retry shortly.");
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      continue;
+    }
+
+    try {
+      await handle.writeFile(String(process.pid));
+      return await operation();
+    } finally {
+      await handle.close();
+      try {
+        await unlink(lockPath);
+      } catch (unlinkError) {
+        if ((unlinkError as NodeJS.ErrnoException).code !== "ENOENT")
+          throw unlinkError;
+      }
+    }
+  }
+}
+
 export async function readKV<T>(key: string, fallback: T): Promise<T> {
   assertProductionStorage();
   if (oracleEnabled()) {
@@ -191,8 +266,7 @@ export async function readKV<T>(key: string, fallback: T): Promise<T> {
   }
 }
 
-// Oracle serializes read-modify-write operations using a row lock, including across instances.
-// The local adapter serializes within one development process and atomically replaces files.
+// Database adapters serialize through row locks; local files use an exclusive lock file.
 export async function mutateKV<T, R>(
   key: string,
   fallback: T,
@@ -271,16 +345,26 @@ export async function mutateKV<T, R>(
           client.release();
         }
       }
-      const data = await readKV(key, fallback);
-      const output = await change(data);
       await mkdir(directory(), { recursive: true });
-      const temporary = `${filePath(key)}.${randomUUID()}.tmp`;
-      await writeFile(temporary, seal(data, key), {
-        encoding: "utf8",
-        mode: 0o600,
+      return await withFileLock(filePath(key), async () => {
+        const data = await readKV(key, fallback);
+        const output = await change(data);
+        const temporary = `${filePath(key)}.${randomUUID()}.tmp`;
+        try {
+          await writeFile(temporary, seal(data, key), {
+            encoding: "utf8",
+            mode: 0o600,
+          });
+          await rename(temporary, filePath(key));
+        } finally {
+          try {
+            await unlink(temporary);
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+          }
+        }
+        return output;
       });
-      await rename(temporary, filePath(key));
-      return output;
     });
   queues.set(key, task);
   try {

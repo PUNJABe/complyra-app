@@ -8,6 +8,8 @@ import {
 } from "@/lib/storage";
 import { generateOpenAIJSON } from "@/lib/openai";
 import type { StoredTransaction } from "@/lib/storage";
+import { identifyAppPlatform } from "@/lib/app-platforms";
+import type { DisplayCurrency } from "@/lib/display-currency";
 import type {
   AutoInvestigationCase,
   ComplianceCheckPayload,
@@ -29,12 +31,16 @@ function toMonthLabel(isoDate: string) {
   return date.toISOString().slice(0, 7);
 }
 
-function formatMoney(amount: number) {
-  return new Intl.NumberFormat("en-IN", {
+function formatMoney(
+  amount: number,
+  currency: DisplayCurrency = "INR",
+  exchangeRate = 1,
+) {
+  return new Intl.NumberFormat(currency === "USD" ? "en-US" : "en-IN", {
     style: "currency",
-    currency: "INR",
+    currency,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(currency === "USD" ? amount * exchangeRate : amount);
 }
 
 function mean(values: number[]) {
@@ -73,7 +79,10 @@ function getActiveTransactions(input: {
   return active.length ? active : store.transactions;
 }
 
-function summarizeTransactions(transactions: StoredTransaction[]) {
+function summarizeTransactions(
+  transactions: StoredTransaction[],
+  money: (amount: number) => string,
+) {
   const totalSpend = transactions.reduce((sum, item) => sum + item.amount, 0);
   const averageSpend = totalSpend / Math.max(transactions.length, 1);
   const highSeverity = transactions.filter(
@@ -104,13 +113,13 @@ function summarizeTransactions(transactions: StoredTransaction[]) {
   }
 
   const merchantSummary = topEntries(merchants, 5)
-    .map(([label, value]) => `${label}: ${formatMoney(value)}`)
+    .map(([label, value]) => `${label}: ${money(value)}`)
     .join("; ");
   const categorySummary = topEntries(categories, 5)
-    .map(([label, value]) => `${label}: ${formatMoney(value)}`)
+    .map(([label, value]) => `${label}: ${money(value)}`)
     .join("; ");
   const departmentSummary = topEntries(departments, 4)
-    .map(([label, value]) => `${label}: ${formatMoney(value)}`)
+    .map(([label, value]) => `${label}: ${money(value)}`)
     .join("; ");
 
   return {
@@ -157,40 +166,188 @@ function clampCopilotRecommendations(
 
 function buildStatementFallbackCopilot(
   transactions: StoredTransaction[],
+  money: (amount: number) => string,
 ): CopilotPayload {
-  const summary = summarizeTransactions(transactions);
-  const highRiskCount = summary.highSeverity + summary.mediumSeverity;
-  const categoryHeadline =
-    summary.categorySummary.split("; ")[0]?.trim() || "Uploaded statement";
+  const expenses = transactions.filter((item) => item.direction !== "credit");
+  const totalSpend = expenses.reduce((sum, item) => sum + item.amount, 0);
+  const recommendations: CopilotPayload["recommendations"] = [];
+  const flagged = expenses.filter((item) => item.needsReview);
+  const duplicateGroups = new Map<string, StoredTransaction[]>();
+  const byCategory = new Map<string, number>();
+  const byMonth = new Map<string, number>();
+  const byMerchant = new Map<string, { count: number; total: number }>();
+  const byApp = new Map<string, { count: number; total: number }>();
+
+  for (const item of expenses) {
+    const duplicateKey = `${item.merchant.trim().toLowerCase()}|${item.amount.toFixed(2)}|${item.date}`;
+    duplicateGroups.set(duplicateKey, [
+      ...(duplicateGroups.get(duplicateKey) || []),
+      item,
+    ]);
+    byCategory.set(
+      item.category,
+      (byCategory.get(item.category) || 0) + item.amount,
+    );
+    const month = toMonthLabel(item.date);
+    if (month !== "Unknown")
+      byMonth.set(month, (byMonth.get(month) || 0) + item.amount);
+    const merchantKey = item.merchant.trim().toLowerCase();
+    const merchant = byMerchant.get(merchantKey) || { count: 0, total: 0 };
+    byMerchant.set(merchantKey, {
+      count: merchant.count + 1,
+      total: merchant.total + item.amount,
+    });
+    const app = identifyAppPlatform(item.merchant);
+    if (app) {
+      const current = byApp.get(app.name) || { count: 0, total: 0 };
+      byApp.set(app.name, {
+        count: current.count + 1,
+        total: current.total + item.amount,
+      });
+    }
+  }
+
+  const potentialDuplicates = [...duplicateGroups.values()].filter(
+    (group) => group.length > 1,
+  );
+  if (potentialDuplicates.length) {
+    const duplicateCount = potentialDuplicates.reduce(
+      (sum, group) => sum + group.length - 1,
+      0,
+    );
+    recommendations.push({
+      id: "potential-duplicates",
+      insight: `${duplicateCount} possible same-merchant, same-amount, same-day duplicate(s) were found.`,
+      recommendation:
+        "Compare each flagged row with the original statement and receipt before treating it as an error.",
+      action: "Draft a duplicate-payment review rule and inspect the flagged transactions.",
+      savingsImpact: 0,
+      confidence: 0,
+    });
+  }
+
+  if (flagged.length) {
+    const flaggedTotal = flagged.reduce((sum, item) => sum + item.amount, 0);
+    recommendations.push({
+      id: "review-queue",
+      insight: `${flagged.length} expense transactions need review, totaling ${money(flaggedTotal)}.`,
+      recommendation:
+        "Confirm the payment purpose and category against the source records; review prompts are not findings of wrongdoing.",
+      action: "Open Transaction Review and add remarks to the flagged records.",
+      savingsImpact: 0,
+      confidence: 0,
+    });
+  }
+
+  const monthlySpend = [...byMonth.entries()].sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  if (monthlySpend.length > 1) {
+    const previous = monthlySpend.at(-2);
+    const current = monthlySpend.at(-1);
+    if (previous && current && previous[1] > 0) {
+      const changePct = ((current[1] - previous[1]) / previous[1]) * 100;
+      if (changePct >= 20) {
+        recommendations.push({
+          id: "spend-change",
+          insight: `Expenses increased ${Math.round(changePct)}% from ${previous[0]} to ${current[0]}.`,
+          recommendation:
+            "Compare the transactions in the two months and check whether the increase is expected or seasonal.",
+          action: "Review the monthly trend and add a budget review rule if useful.",
+          savingsImpact: 0,
+          confidence: 0,
+        });
+      } else if (changePct <= -20) {
+        recommendations.push({
+          id: "spend-change",
+          insight: `Expenses decreased ${Math.round(Math.abs(changePct))}% from ${previous[0]} to ${current[0]}.`,
+          recommendation:
+            "Check that the latest statement period is complete before treating the decrease as a lasting change.",
+          action: "Compare statement coverage and review the latest monthly trend.",
+          savingsImpact: 0,
+          confidence: 0,
+        });
+      }
+    }
+  }
+
+  const leadingApp = [...byApp.entries()]
+    .sort((a, b) => b[1].total - a[1].total)[0];
+  if (
+    leadingApp &&
+    totalSpend > 0 &&
+    leadingApp[1].total / totalSpend >= 0.1 &&
+    recommendations.length < 3
+  ) {
+    recommendations.push({
+      id: "platform-spend",
+      insight: `${leadingApp[0]} appears ${leadingApp[1].count} times and accounts for ${Math.round((leadingApp[1].total / totalSpend) * 100)}% of current expenses.`,
+      recommendation:
+        "Check whether these payments are expected, correctly categorized, and supported by receipts; frequency alone does not establish a subscription.",
+      action: "Review this platform's transactions in Statement Insights.",
+      savingsImpact: 0,
+      confidence: 0,
+    });
+  }
+
+  const topCategory = [...byCategory.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (
+    totalSpend > 0 &&
+    topCategory &&
+    topCategory[1] / totalSpend >= 0.3 &&
+    recommendations.length < 3
+  ) {
+    recommendations.push({
+      id: "category-concentration",
+      insight: `${topCategory[0]} accounts for ${Math.round((topCategory[1] / totalSpend) * 100)}% of current expenses (${money(topCategory[1])}).`,
+      recommendation:
+        "Review the largest transactions in this category and decide whether a budget limit would help.",
+      action: `Draft a monthly review rule for ${topCategory[0]} spending.`,
+      savingsImpact: 0,
+      confidence: 0,
+    });
+  }
+
+  const repeatedMerchant = [...byMerchant.entries()]
+    .filter(([, value]) => value.count >= 3)
+    .sort((a, b) => b[1].total - a[1].total)[0];
+  if (!recommendations.length && repeatedMerchant) {
+    recommendations.push({
+      id: "repeat-merchant",
+      insight: `${repeatedMerchant[0]} appears ${repeatedMerchant[1].count} times, totaling ${money(repeatedMerchant[1].total)}.`,
+      recommendation:
+        "Check whether these are expected recurring charges; transaction frequency alone does not establish a subscription.",
+      action: "Review these merchant transactions in the statement.",
+      savingsImpact: 0,
+      confidence: 0,
+    });
+  }
+
+  if (!recommendations.length && totalSpend > 0) {
+    recommendations.push({
+      id: "spend-review",
+      insight: `${expenses.length} expense transactions total ${money(totalSpend)} in the active statement.`,
+      recommendation:
+        "Compare the largest merchants and category totals with your own plans and source records.",
+      action: "Open Statement Insights to review category concentration.",
+      savingsImpact: 0,
+      confidence: 0,
+    });
+  }
 
   return {
-    headline: "Statement-driven finance copilot",
-    recommendations: clampCopilotRecommendations([
-      {
-        id: "fallback-1",
-        insight: `${categoryHeadline} is the dominant spend driver in this upload.`,
-        recommendation:
-          "Set tighter category caps and review the largest merchants for policy fit.",
-        action:
-          "Create a statement-specific budget rule for the highest-spend category.",
-        savingsImpact: 0,
-        confidence: 0,
-      },
-      {
-        id: "fallback-2",
-        insight: `${highRiskCount} transactions are in the medium or high review band.`,
-        recommendation:
-          "Review the flagged records and add explanatory remarks.",
-        action: "Open Transaction Review and confirm unclear payment purposes.",
-        savingsImpact: 0,
-        confidence: 0,
-      },
-    ]),
+    headline:
+      recommendations.length > 0
+        ? "Prioritized suggestions based on your statement"
+        : "Upload a statement to get grounded recommendations.",
+    recommendations: clampCopilotRecommendations(recommendations),
   };
 }
 
 async function buildCopilotPayload(
   transactions: StoredTransaction[],
+  currency: DisplayCurrency,
+  exchangeRate: number,
 ): Promise<CopilotPayload> {
   if (!transactions.length) {
     return {
@@ -199,8 +356,9 @@ async function buildCopilotPayload(
     };
   }
 
-  const summary = summarizeTransactions(transactions);
-  const fallback = buildStatementFallbackCopilot(transactions);
+  const money = (amount: number) => formatMoney(amount, currency, exchangeRate);
+  const summary = summarizeTransactions(transactions, money);
+  const fallback = buildStatementFallbackCopilot(transactions, money);
 
   const aiPayload = await generateOpenAIJSON<CopilotPayload>({
     system:
@@ -208,8 +366,9 @@ async function buildCopilotPayload(
     user:
       `Statement summary:\n` +
       `- Transactions: ${transactions.length}\n` +
-      `- Total spend: ${formatMoney(summary.totalSpend)}\n` +
-      `- Average spend: ${formatMoney(summary.averageSpend)}\n` +
+      `- Display currency: ${currency}\n` +
+      `- Total spend: ${money(summary.totalSpend)}\n` +
+      `- Average spend: ${money(summary.averageSpend)}\n` +
       `- High severity transactions: ${summary.highSeverity}\n` +
       `- Medium severity transactions: ${summary.mediumSeverity}\n` +
       `- Top merchants: ${summary.merchantSummary || "None"}\n` +
@@ -370,17 +529,21 @@ function policyTemplates(): PolicyTemplate[] {
   return policyData.templates;
 }
 
-export async function getOverviewPayload(): Promise<OverviewPayload> {
+export async function getOverviewPayload(
+  currency: DisplayCurrency = "INR",
+  exchangeRate = 1,
+): Promise<OverviewPayload> {
   const store = await readStore();
   const transactions = getActiveTransactions(store);
+  const money = (amount: number) => formatMoney(amount, currency, exchangeRate);
 
   if (!transactions.length)
     return {
       kpis: [
         {
           label: "Expenses",
-          value: formatMoney(0),
-          hint: "Upload an INR statement to begin",
+          value: money(0),
+          hint: "Upload a statement to begin",
         },
         { label: "Needs review", value: "0", hint: "No statement loaded" },
         {
@@ -427,7 +590,11 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
     ],
   });
 
-  const copilotRecommendations = await buildCopilotPayload(transactions);
+  const copilotRecommendations = await buildCopilotPayload(
+    transactions,
+    currency,
+    exchangeRate,
+  );
 
   return {
     kpis: [
@@ -443,7 +610,7 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
       },
       {
         label: "Total expenses",
-        value: formatMoney(total),
+        value: money(total),
         hint: "Credits are excluded from spending",
       },
     ],
@@ -479,7 +646,10 @@ export async function getOverviewPayload(): Promise<OverviewPayload> {
   };
 }
 
-export async function getPolicyPayload(): Promise<PolicyPayload> {
+export async function getPolicyPayload(
+  currency: DisplayCurrency = "INR",
+  exchangeRate = 1,
+): Promise<PolicyPayload> {
   const store = await readStore();
   const findings: PolicyPayload["findings"] = getActiveTransactions(store)
     .filter((item) => item.needsReview)
@@ -497,7 +667,7 @@ export async function getPolicyPayload(): Promise<PolicyPayload> {
       amount: transaction.amount,
       explainability: {
         whyFlagged: transaction.reviewReasons?.join(" ") || "Unclear purpose",
-        evidence: `${transaction.merchant} on ${transaction.date} for ${formatMoney(transaction.amount)}.`,
+        evidence: `${transaction.merchant} on ${transaction.date} for ${formatMoney(transaction.amount, currency, exchangeRate)}.`,
         ruleTriggered: "TRANSACTION_REVIEW",
         impact:
           "Add a remark and verify the category against your source records. This is a review prompt, not a compliance determination.",
@@ -516,9 +686,16 @@ export async function getPolicyPayload(): Promise<PolicyPayload> {
   };
 }
 
-export async function getCopilotPayload(): Promise<CopilotPayload> {
+export async function getCopilotPayload(
+  currency: DisplayCurrency = "INR",
+  exchangeRate = 1,
+): Promise<CopilotPayload> {
   const store = await readStore();
-  return buildCopilotPayload(getActiveTransactions(store));
+  return buildCopilotPayload(
+    getActiveTransactions(store),
+    currency,
+    exchangeRate,
+  );
 }
 
 export async function getInvestigationPayload(): Promise<InvestigationPayload> {
@@ -710,7 +887,10 @@ export async function getInvestigationPayload(): Promise<InvestigationPayload> {
   };
 }
 
-export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
+export async function getIntegrationsPayload(
+  currency: DisplayCurrency = "INR",
+  exchangeRate = 1,
+): Promise<IntegrationsPayload> {
   const store = await readStore();
   const alerts = await getIntegrationAlerts();
   const jobs = await getIntegrationJobs();
@@ -739,7 +919,7 @@ export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
       id: `policy-alert-${index + 1}`,
       channel: "whatsapp" as const,
       title: "Transaction review requested",
-      message: `${item.merchant} (${formatMoney(item.amount)}) needs your context; please review the payment purpose.`,
+      message: `${item.merchant} (${formatMoney(item.amount, currency, exchangeRate)}) needs your context; please review the payment purpose.`,
       timestamp: new Date().toISOString(),
     }));
 
@@ -776,7 +956,10 @@ export async function getIntegrationsPayload(): Promise<IntegrationsPayload> {
   };
 }
 
-export async function getComplianceCheckPayload(): Promise<ComplianceCheckPayload> {
+export async function getComplianceCheckPayload(
+  currency: DisplayCurrency = "INR",
+  exchangeRate = 1,
+): Promise<ComplianceCheckPayload> {
   const transactions = getActiveTransactions(await readStore());
   const pending = transactions.filter((item) => item.needsReview);
   const topRisks: ComplianceCheckPayload["topRisks"] = pending
@@ -796,7 +979,7 @@ export async function getComplianceCheckPayload(): Promise<ComplianceCheckPayloa
       reason:
         item.reviewReasons?.join(" ") ||
         "Add a remark to confirm the payment purpose.",
-      evidence: `${item.date} / ${item.category} / ${formatMoney(item.amount)}. Statement-only signal; verify with your original records.`,
+      evidence: `${item.date} / ${item.category} / ${formatMoney(item.amount, currency, exchangeRate)}. Statement-only signal; verify with your original records.`,
     }));
   return {
     summary: {
