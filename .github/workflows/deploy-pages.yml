@@ -29,7 +29,7 @@ jobs:
       - name: Configure Pages base path
         shell: bash
         env:
-          PAGES_CUSTOM_DOMAIN: ${{ env.PAGES_CUSTOM_DOMAIN }}
+          PAGES_CUSTOM_DOMAIN: "true"
         run: |
           repository="${GITHUB_REPOSITORY#*/}"
           owner="${GITHUB_REPOSITORY%%/*}"

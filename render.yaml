@@ -23,7 +23,7 @@ services:
       - key: RESEND_API_KEY
         sync: false
       - key: MAIL_FROM
-        sync: false
+        value: Complyra <no-reply@complyra.site>
       - key: LEGAL_ENTITY_NAME
         sync: false
       - key: PRIVACY_CONTACT_EMAIL
