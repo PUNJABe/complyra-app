@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: complyra-api
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COMPLYRA_STORAGE_MODE
+        value: postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: DATA_ENCRYPTION_KEY
+        sync: false
+      - key: APP_ORIGIN
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: LEGAL_ENTITY_NAME
+        sync: false
+      - key: PRIVACY_CONTACT_EMAIL
+        sync: false
+      - key: LEGAL_POLICIES_APPROVED
+        value: "false"

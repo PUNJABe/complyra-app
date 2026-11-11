@@ -1,19 +1,30 @@
 "use client";
+import { useRouter } from "next/navigation";
 
 import Link from "next/link";
 import { useState } from "react";
 import { Lock, Zap, Settings, ChevronRight, Upload } from "lucide-react";
 import type { WorkspaceMode } from "@/lib/types";
+import { apiFetch } from "@/lib/api-client";
 
 interface AnalysisResult {
   totalTransactions: number;
   dateRange: { earliest: string; latest: string };
   averageTransaction: number;
-  categoryBreakdown: Array<{ category: string; total: number; percentage: number }>;
-  suggestedBudgets: Array<{ category: string; suggestedMonthly: number; baseAverage: number }>;
+  categoryBreakdown: Array<{
+    category: string;
+    total: number;
+    percentage: number;
+  }>;
+  suggestedBudgets: Array<{
+    category: string;
+    suggestedMonthly: number;
+    baseAverage: number;
+  }>;
 }
 
 export default function OnboardingPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<WorkspaceMode>("personal");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -36,7 +47,7 @@ export default function OnboardingPage() {
     form.append("mode", mode);
 
     try {
-      const response = await fetch("/api/onboarding/parse", {
+      const response = await apiFetch("/api/onboarding/parse", {
         method: "POST",
         body: form,
       });
@@ -63,7 +74,9 @@ export default function OnboardingPage() {
     <div className="mx-auto w-full max-w-2xl px-6 pb-12 pt-8 md:px-10">
       {/* Header */}
       <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/55">Complyra Onboarding</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/55">
+          Complyra Onboarding
+        </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">
           {step === "upload" && "Upload your statement"}
           {step === "options" && "Choose your setup mode"}
@@ -71,7 +84,8 @@ export default function OnboardingPage() {
         <p className="mt-2 text-sm leading-relaxed text-ink/70">
           {step === "upload" &&
             "Start by uploading a recent bank or expense statement. Complyra will analyze it and suggest personalized policies."}
-          {step === "options" && "We analyzed your spending. How would you like to create your compliance policy?"}
+          {step === "options" &&
+            "We analyzed your spending. How would you like to create your compliance policy?"}
         </p>
       </div>
 
@@ -81,13 +95,17 @@ export default function OnboardingPage() {
           <form onSubmit={onUpload} className="space-y-6">
             {/* Who are you? */}
             <div className="rounded-2xl border border-ink/12 bg-canvas/65 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Who are you setting up for?</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">
+                Who are you setting up for?
+              </p>
               <div className="mt-3 inline-flex rounded-full border border-ink/15 bg-white p-1 text-sm">
                 <button
                   type="button"
                   onClick={() => setMode("personal")}
                   className={`rounded-full px-4 py-2 font-medium transition ${
-                    mode === "personal" ? "bg-ink text-canvas" : "text-ink/70 hover:text-ink"
+                    mode === "personal"
+                      ? "bg-ink text-canvas"
+                      : "text-ink/70 hover:text-ink"
                   }`}
                 >
                   Personal
@@ -96,7 +114,9 @@ export default function OnboardingPage() {
                   type="button"
                   onClick={() => setMode("business")}
                   className={`rounded-full px-4 py-2 font-medium transition ${
-                    mode === "business" ? "bg-ink text-canvas" : "text-ink/70 hover:text-ink"
+                    mode === "business"
+                      ? "bg-ink text-canvas"
+                      : "text-ink/70 hover:text-ink"
                   }`}
                 >
                   Business
@@ -107,8 +127,12 @@ export default function OnboardingPage() {
             {/* Upload Zone */}
             <label className="relative rounded-2xl border-2 border-dashed border-ink/20 bg-ink/2 p-8 text-center hover:border-ink/40 transition cursor-pointer">
               <Upload className="mx-auto h-10 w-10 text-ink/40 mb-3" />
-              <p className="font-semibold text-ink">Drag and drop your statement</p>
-              <p className="text-sm text-ink/60 mt-1">or click to select file</p>
+              <p className="font-semibold text-ink">
+                Drag and drop your statement
+              </p>
+              <p className="text-sm text-ink/60 mt-1">
+                or click to select file
+              </p>
               <input
                 type="file"
                 accept=".csv,.xlsx,.xls,.pdf"
@@ -124,10 +148,20 @@ export default function OnboardingPage() {
 
             {/* Supported formats */}
             <div className="rounded-xl border border-ink/10 bg-canvas/40 p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-2">Supported formats:</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-2">
+                Supported formats:
+              </p>
               <div className="flex flex-wrap gap-2">
-                {["Bank CSV", "Credit Card CSV", "Expense Excel", "PDF Records"].map((fmt) => (
-                  <div key={fmt} className="rounded-full bg-white px-3 py-1 text-xs text-ink/70">
+                {[
+                  "Bank CSV",
+                  "Credit Card CSV",
+                  "Expense Excel",
+                  "PDF Records",
+                ].map((fmt) => (
+                  <div
+                    key={fmt}
+                    className="rounded-full bg-white px-3 py-1 text-xs text-ink/70"
+                  >
                     {fmt}
                   </div>
                 ))}
@@ -138,12 +172,18 @@ export default function OnboardingPage() {
             <div className="rounded-xl border border-accent/20 bg-accent/5 p-3 flex gap-2">
               <Lock className="h-4 w-4 text-accent flex-shrink-0 mt-0.5" />
               <p className="text-xs text-accent/80">
-                Your statement is <span className="font-semibold">encrypted and analyzed privately</span>. We never store raw statements.
+                Your statement is{" "}
+                <span className="font-semibold">
+                  encrypted and analyzed privately
+                </span>
+                . We never store raw statements.
               </p>
             </div>
 
             {error && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {error}
+              </div>
             )}
 
             <button
@@ -169,41 +209,59 @@ export default function OnboardingPage() {
         <div className="space-y-6">
           {/* Analysis Summary */}
           <div className="rounded-2xl border border-ink/10 bg-white/85 p-6 shadow-[0_18px_50px_-38px_rgba(17,24,39,0.45)] backdrop-blur-md">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-4">Analysis results</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-4">
+              Analysis results
+            </p>
             <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
               <div className="rounded-xl bg-canvas/60 p-4">
                 <p className="text-xs text-ink/60 font-medium">Transactions</p>
-                <p className="text-2xl font-bold text-ink mt-1">{analysis.totalTransactions}</p>
+                <p className="text-2xl font-bold text-ink mt-1">
+                  {analysis.totalTransactions}
+                </p>
               </div>
               <div className="rounded-xl bg-canvas/60 p-4">
                 <p className="text-xs text-ink/60 font-medium">Avg Amount</p>
-                <p className="text-2xl font-bold text-ink mt-1">₹{analysis.averageTransaction.toLocaleString()}</p>
+                <p className="text-2xl font-bold text-ink mt-1">
+                  ₹{analysis.averageTransaction.toLocaleString()}
+                </p>
               </div>
               <div className="rounded-xl bg-canvas/60 p-4">
                 <p className="text-xs text-ink/60 font-medium">Categories</p>
-                <p className="text-2xl font-bold text-ink mt-1">{analysis.categoryBreakdown.length}</p>
+                <p className="text-2xl font-bold text-ink mt-1">
+                  {analysis.categoryBreakdown.length}
+                </p>
               </div>
               <div className="rounded-xl bg-canvas/60 p-4">
                 <p className="text-xs text-ink/60 font-medium">Date Range</p>
                 <p className="text-xs font-mono text-ink mt-2">
-                  {new Date(analysis.dateRange.earliest).toLocaleDateString()} to{" "}
-                  {new Date(analysis.dateRange.latest).toLocaleDateString()}
+                  {new Date(analysis.dateRange.earliest).toLocaleDateString()}{" "}
+                  to {new Date(analysis.dateRange.latest).toLocaleDateString()}
                 </p>
               </div>
             </div>
 
             {/* Category breakdown */}
             <div className="mt-6 pt-6 border-t border-ink/10">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-3">Spending by category</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-3">
+                Spending by category
+              </p>
               <div className="space-y-2">
                 {analysis.categoryBreakdown.slice(0, 5).map((cat) => (
-                  <div key={cat.category} className="flex items-center justify-between text-sm">
+                  <div
+                    key={cat.category}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span className="text-ink/80">{cat.category}</span>
                     <div className="flex items-center gap-3">
                       <div className="w-24 h-2 bg-ink/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-accent/70" style={{ width: `${cat.percentage}%` }} />
+                        <div
+                          className="h-full bg-accent/70"
+                          style={{ width: `${cat.percentage}%` }}
+                        />
                       </div>
-                      <span className="text-ink/60 font-mono text-xs w-12 text-right">₹{cat.total.toLocaleString()}</span>
+                      <span className="text-ink/60 font-mono text-xs w-12 text-right">
+                        ₹{cat.total.toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -216,9 +274,12 @@ export default function OnboardingPage() {
             {/* Option A: AI Auto */}
             <button
               onClick={() => {
-                localStorage.setItem("onboarding_analysis", JSON.stringify(analysis));
+                localStorage.setItem(
+                  "onboarding_analysis",
+                  JSON.stringify(analysis),
+                );
                 localStorage.setItem("policy_mode", "ai_auto");
-                window.location.href = "/onboarding/ai-policy";
+                router.push("/onboarding/ai-policy");
               }}
               className="group rounded-2xl border-2 border-accent/30 bg-white/85 p-6 text-left transition hover:border-accent hover:shadow-[0_18px_50px_-38px_rgba(16,185,129,0.15)]"
             >
@@ -230,9 +291,12 @@ export default function OnboardingPage() {
                   Recommended
                 </span>
               </div>
-              <h3 className="font-semibold text-ink group-hover:text-ink">AI Generate Policy</h3>
+              <h3 className="font-semibold text-ink group-hover:text-ink">
+                AI Generate Policy
+              </h3>
               <p className="text-sm text-ink/60 mt-2">
-                Complyra creates a smart policy based on your spending patterns in 30 seconds
+                Complyra creates a smart policy based on your spending patterns
+                in 30 seconds
               </p>
               <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent group-hover:gap-2 transition">
                 Get started <ChevronRight className="h-4 w-4" />
@@ -242,9 +306,12 @@ export default function OnboardingPage() {
             {/* Option B: Manual */}
             <button
               onClick={() => {
-                localStorage.setItem("onboarding_analysis", JSON.stringify(analysis));
+                localStorage.setItem(
+                  "onboarding_analysis",
+                  JSON.stringify(analysis),
+                );
                 localStorage.setItem("policy_mode", "manual");
-                window.location.href = "/onboarding/manual-budget";
+                router.push("/onboarding/manual-budget");
               }}
               className="group rounded-2xl border-2 border-ink/15 bg-white/85 p-6 text-left transition hover:border-ink/40 hover:shadow-[0_18px_50px_-38px_rgba(30,58,138,0.15)]"
             >
@@ -253,7 +320,8 @@ export default function OnboardingPage() {
               </div>
               <h3 className="font-semibold text-ink">Set Budget Manually</h3>
               <p className="text-sm text-ink/60 mt-2">
-                Define your own monthly category budgets and savings targets from scratch
+                Define your own monthly category budgets and savings targets
+                from scratch
               </p>
               <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-ink/60 group-hover:gap-2 group-hover:text-ink transition">
                 Get started <ChevronRight className="h-4 w-4" />
@@ -263,9 +331,12 @@ export default function OnboardingPage() {
             {/* Option C: Hybrid */}
             <button
               onClick={() => {
-                localStorage.setItem("onboarding_analysis", JSON.stringify(analysis));
+                localStorage.setItem(
+                  "onboarding_analysis",
+                  JSON.stringify(analysis),
+                );
                 localStorage.setItem("policy_mode", "hybrid");
-                window.location.href = "/onboarding/hybrid-mode";
+                router.push("/onboarding/hybrid-mode");
               }}
               className="group rounded-2xl border-2 border-ink/15 bg-white/85 p-6 text-left transition hover:border-ink/40 hover:shadow-[0_18px_50px_-38px_rgba(30,58,138,0.15)]"
             >
@@ -274,7 +345,8 @@ export default function OnboardingPage() {
               </div>
               <h3 className="font-semibold text-ink">Hybrid Smart Setup</h3>
               <p className="text-sm text-ink/60 mt-2">
-                Generate policy first, then review and customize every category and limit
+                Generate policy first, then review and customize every category
+                and limit
               </p>
               <div className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-ink/60 group-hover:gap-2 group-hover:text-ink transition">
                 Get started <ChevronRight className="h-4 w-4" />

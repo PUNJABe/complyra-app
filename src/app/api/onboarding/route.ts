@@ -1,6 +1,12 @@
+import { apiAccessError } from "@/lib/api-access";
 import { NextResponse } from "next/server";
 
-import { addClientProfile, saveWorkspace, setActiveClient, setWorkspaceMode } from "@/lib/storage";
+import {
+  addClientProfile,
+  saveWorkspace,
+  setActiveClient,
+  setWorkspaceMode,
+} from "@/lib/storage";
 import type { WorkspaceMode } from "@/lib/types";
 
 type OnboardingBody = {
@@ -16,11 +22,16 @@ type OnboardingBody = {
 };
 
 export async function POST(request: Request) {
+  const accessError = await apiAccessError("POST");
+  if (accessError) return accessError;
   const body = (await request.json()) as OnboardingBody;
   const workspaceName = body.workspaceName?.trim();
 
   if (!workspaceName) {
-    return NextResponse.json({ error: "Workspace name is required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Workspace name is required." },
+      { status: 400 },
+    );
   }
 
   const departments = body.departments?.filter(Boolean) ?? [];
@@ -48,6 +59,6 @@ export async function POST(request: Request) {
     departments,
     mode: body.mode ?? "business",
     initialClientId,
-    message: "Workspace initialized with mock backend.",
+    message: "Your private workspace is ready.",
   });
 }

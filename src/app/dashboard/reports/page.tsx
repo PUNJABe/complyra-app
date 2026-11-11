@@ -5,6 +5,7 @@ import { Download, Search } from "lucide-react";
 import type { PolicyPayload } from "@/lib/types";
 import { exportToPDF, generateReport } from "@/lib/export-utils";
 import { useFormatMoney } from "@/lib/use-format-money";
+import { apiFetch } from "@/lib/api-client";
 
 type SeverityFilter = "all" | "high" | "medium";
 
@@ -19,11 +20,11 @@ export default function ReportsPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const response = await fetch("/api/policy", { cache: "no-store" });
+        const response = await apiFetch("/api/policy", { cache: "no-store" });
         if (!response.ok) throw new Error("Failed to load reports data.");
         setData((await response.json()) as PolicyPayload);
 
-        await fetch("/api/audit", {
+        await apiFetch("/api/audit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -67,7 +68,7 @@ export default function ReportsPage() {
       "Generated from Reports"
     );
 
-    void fetch("/api/audit", {
+    void apiFetch("/api/audit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -92,7 +93,7 @@ export default function ReportsPage() {
       "complyra-risk-report"
     );
 
-    void fetch("/api/audit", {
+    void apiFetch("/api/audit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

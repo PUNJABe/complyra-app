@@ -1,138 +1,277 @@
 "use client";
-
-import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
+import {
+  ArrowLeft,
+  ArrowRight,
+  Layers3,
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+} from "lucide-react";
 import { ThemeToggle } from "@/components/app/theme-toggle";
+import { apiFetch } from "@/lib/api-client";
 
-type Provider = "mock" | "supabase";
-
-type LoginResponse = {
-  ok?: boolean;
-  error?: string;
-};
-
-async function parseLoginResponse(response: Response): Promise<LoginResponse> {
-  const contentType = response.headers.get("content-type") ?? "";
-
-  if (contentType.includes("application/json")) {
-    try {
-      return (await response.json()) as LoginResponse;
-    } catch {
-      return {};
-    }
-  }
-
-  const text = await response.text();
-  return text ? { error: text } : {};
-}
-
-type LoginScreenProps = {
+type Mode = "login" | "register" | "reset" | "verify";
+export function LoginScreen({
+  heading,
+  description,
+  mode = "login",
+}: {
   heading?: string;
   description?: string;
-};
-
-export function LoginScreen({
-  heading = "Sign in to your workspace",
-  description = "Intelligent compliance system access. Start with Individual access for local development, then switch to Company access for real authentication.",
-}: LoginScreenProps) {
+  mode?: Mode;
+}) {
   const router = useRouter();
-  const [provider, setProvider] = useState<Provider>("mock");
-  const [email, setEmail] = useState("demo@complyra.local");
-  const [password, setPassword] = useState("complyra123");
-  const [loading, setLoading] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [acceptPolicies, setAcceptPolicies] = useState(false);
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
+  const [message, setMessage] = useState("");
+  useEffect(() => {
+    const value =
+      new URLSearchParams(window.location.hash.slice(1)).get("token") || "";
+    if (value) {
+      window.history.replaceState(null, "", window.location.pathname);
+      const frame = requestAnimationFrame(() => setToken(value));
+      return () => cancelAnimationFrame(frame);
+    }
+  }, []);
+  const titles = {
+    login: "Welcome back.",
+    register: "A clearer picture starts here.",
+    reset: token ? "Choose a new password." : "Get back to your workspace.",
+    verify: "Verify your email.",
+  };
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    setLoading(true);
+    setBusy(true);
     setError("");
-
+    setMessage("");
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await apiFetch(`/api/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, provider }),
+        body: JSON.stringify(
+          mode === "verify"
+            ? { token }
+            : mode === "reset" && token
+              ? { token, password }
+              : { name, email, password, acceptPolicies },
+        ),
       });
-
-      const payload = await parseLoginResponse(response);
-      if (!response.ok) {
-        throw new Error(payload.error ?? `Login failed (${response.status}).`);
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Request failed. Please try again.");
+      if (mode === "login") {
+        router.push("/dashboard");
+        router.refresh();
+      } else {
+        setMessage(data.message || "Done.");
+        setPassword("");
       }
-
-      router.push("/onboarding");
-      router.refresh();
-    } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unexpected login error.");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Unable to connect.");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
-
   return (
-    <div className="relative mx-auto flex min-h-screen w-full max-w-4xl flex-col items-center justify-center px-6 py-12 md:px-10">
-      <div className="absolute right-6 top-6">
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-6 py-8 md:px-12">
+      <header className="flex items-center justify-between">
+        <Link
+          className="flex items-center gap-2 text-xl font-semibold tracking-tight"
+          href="/"
+        >
+          <Layers3 className="text-emerald-700" />
+          complyra.
+        </Link>
         <ThemeToggle />
-      </div>
-
-      <div className="grid w-full gap-6 rounded-[2rem] border border-ink/10 bg-white/86 p-6 shadow-[0_24px_60px_-44px_rgba(17,24,39,0.45)] backdrop-blur-md md:grid-cols-[1.05fr_0.95fr] md:p-8">
-        <section className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/55">Complyra Access</p>
-          <h1 className="text-3xl font-semibold tracking-tight">{heading}</h1>
-          <p className="text-sm leading-relaxed text-ink/70">{description}</p>
-        </section>
-
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div className="inline-flex rounded-full border border-ink/15 bg-canvas/70 p-1 text-sm">
-            <button
-              type="button"
-              onClick={() => setProvider("mock")}
-              className={`rounded-full px-3 py-1.5 transition ${provider === "mock" ? "bg-ink text-canvas" : "text-ink/70"}`}
-            >
-              Individual
-            </button>
-            <button
-              type="button"
-              onClick={() => setProvider("supabase")}
-              className={`rounded-full px-3 py-1.5 transition ${provider === "supabase" ? "bg-ink text-canvas" : "text-ink/70"}`}
-            >
-              Company
-            </button>
+      </header>
+      <div className="my-auto grid items-center gap-12 py-16 md:grid-cols-2">
+        <section>
+          <p className="text-xs font-semibold tracking-[.2em] text-emerald-700">
+            A LITTLE MORE FINANCIAL CLARITY
+          </p>
+          <h1 className="mt-5 text-4xl font-medium leading-tight tracking-tight md:text-5xl">
+            {heading || titles[mode]}
+          </h1>
+          <p className="mt-6 max-w-sm text-sm leading-7 text-ink/60">
+            {description ||
+              "Your statements, spending insights and financial decisions, together in a private workspace."}
+          </p>
+          <div className="mt-9 flex gap-3 rounded-2xl border border-emerald-600/15 bg-emerald-500/5 p-5">
+            <ShieldCheck className="shrink-0 text-emerald-700" size={22} />
+            <p className="text-xs leading-6 text-ink/65">
+              Accounts activate after email verification. Your workspace is
+              accessible only after you sign in.
+            </p>
           </div>
-
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">Email</span>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-sm outline-none ring-accent/35 transition focus:ring-4"
-            />
-          </label>
-
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">Password</span>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className="w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-sm outline-none ring-accent/35 transition focus:ring-4"
-            />
-          </label>
-
-          {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-canvas transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-60"
+          <Link
+            href="/"
+            className="mt-8 inline-flex items-center gap-2 text-xs text-ink/60"
           >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
+            <ArrowLeft size={14} /> Back to the website
+          </Link>
+        </section>
+        <form
+          onSubmit={onSubmit}
+          className="space-y-5 rounded-3xl border border-ink/10 bg-white/90 p-7 shadow-xl shadow-ink/5 md:p-9"
+        >
+          <div className="mb-6 flex items-center gap-2 text-sm font-semibold">
+            <LockKeyhole size={17} />
+            {mode === "register"
+              ? "Create an account"
+              : mode === "verify"
+                ? "Confirm your email address"
+                : mode === "reset"
+                  ? "Password recovery"
+                  : "Sign in to Complyra"}
+          </div>
+          {mode === "register" && (
+            <label className="block text-sm">
+              Your name
+              <input
+                autoComplete="name"
+                className="mt-2 w-full rounded-xl border border-ink/20 bg-canvas p-3"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                maxLength={100}
+                required
+              />
+            </label>
+          )}
+          {mode !== "verify" && !(mode === "reset" && token) && (
+            <label className="block text-sm">
+              Email address
+              <input
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                className="mt-2 w-full rounded-xl border border-ink/20 bg-canvas p-3"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                maxLength={254}
+                required
+              />
+            </label>
+          )}
+          {(mode === "login" ||
+            mode === "register" ||
+            (mode === "reset" && token)) && (
+            <label className="block text-sm">
+              {mode === "reset" ? "New password" : "Password"}
+              <input
+                type="password"
+                autoComplete={
+                  mode === "login" ? "current-password" : "new-password"
+                }
+                className="mt-2 w-full rounded-xl border border-ink/20 bg-canvas p-3"
+                minLength={mode === "login" ? 1 : 12}
+                maxLength={128}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+              {mode !== "login" && (
+                <span className="mt-2 block text-xs text-ink/50">
+                  12-128 characters. A unique passphrase works well.
+                </span>
+              )}
+            </label>
+          )}
+          {mode === "register" && (
+            <label className="flex items-start gap-3 text-xs leading-6 text-ink/65">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={acceptPolicies}
+                onChange={(event) => setAcceptPolicies(event.target.checked)}
+                required
+              />
+              <span>
+                I am 18 or older, accept the{" "}
+                <Link className="underline" href="/legal/terms" target="_blank">
+                  Terms
+                </Link>{" "}
+                and acknowledge the{" "}
+                <Link
+                  className="underline"
+                  href="/legal/privacy"
+                  target="_blank"
+                >
+                  Privacy Notice
+                </Link>
+                . I am authorized to upload the records I provide.
+              </span>
+            </label>
+          )}
+          {mode === "verify" && (
+            <p className="flex gap-2 text-sm leading-6 text-ink/65">
+              <Mail className="shrink-0" size={20} />
+              {token
+                ? "Confirm below to activate your account. This does not sign you in automatically."
+                : "Open the link in your verification email. If it has expired, submit the registration form again for a new link."}
+            </p>
+          )}
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl bg-rose-500/10 p-3 text-sm text-rose-600"
+            >
+              {error}
+            </p>
+          )}
+          {message && (
+            <p
+              role="status"
+              className="rounded-xl bg-emerald-500/10 p-3 text-sm leading-6 text-emerald-700"
+            >
+              {message}
+            </p>
+          )}
+          {!(mode === "verify" && !token) &&
+            !(
+              (mode === "verify" || (mode === "reset" && token)) &&
+              message
+            ) && (
+              <button
+                disabled={busy}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-900 p-3 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {busy
+                  ? "Please wait..."
+                  : mode === "register"
+                    ? "Send verification email"
+                    : mode === "verify"
+                      ? "Verify email & activate account"
+                      : mode === "reset"
+                        ? token
+                          ? "Save new password"
+                          : "Send reset email"
+                        : "Sign in"}
+                <ArrowRight size={16} />
+              </button>
+            )}
+          <div className="flex flex-wrap justify-between gap-3 border-t border-ink/10 pt-5 text-xs">
+            <Link
+              className="underline"
+              href={mode === "login" ? "/auth/register" : "/auth/login"}
+            >
+              {mode === "login" ? "Create an account" : "Back to sign in"}
+            </Link>
+            {mode === "login" && (
+              <Link className="text-ink/60 underline" href="/auth/reset">
+                Forgot password?
+              </Link>
+            )}
+          </div>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

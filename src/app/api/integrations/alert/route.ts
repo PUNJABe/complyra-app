@@ -1,6 +1,10 @@
+import { apiAccessError } from "@/lib/api-access";
 import { NextResponse } from "next/server";
 
-import { enqueueIntegrationDelivery, processDeliveryJob } from "@/lib/integration-delivery";
+import {
+  enqueueIntegrationDelivery,
+  processDeliveryJob,
+} from "@/lib/integration-delivery";
 
 type AlertBody = {
   channel?: "slack" | "whatsapp";
@@ -10,10 +14,15 @@ type AlertBody = {
 };
 
 export async function POST(request: Request) {
+  const accessError = await apiAccessError("POST", true);
+  if (accessError) return accessError;
   const body = (await request.json()) as AlertBody;
 
   if (!body.channel || !body.message?.trim()) {
-    return NextResponse.json({ error: "Channel and message are required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Channel and message are required." },
+      { status: 400 },
+    );
   }
 
   const message = body.message.trim();
@@ -40,24 +49,35 @@ export async function POST(request: Request) {
     }
 
     if (processed.status === "retrying") {
-      return NextResponse.json({
-        ok: false,
-        queued: true,
-        message: `Delivery failed on attempt ${processed.attempts}. Retrying at ${processed.nextAttemptAt}.`,
-        job: processed,
-      }, { status: 202 });
+      return NextResponse.json(
+        {
+          ok: false,
+          queued: true,
+          message: `Delivery failed on attempt ${processed.attempts}. Retrying at ${processed.nextAttemptAt}.`,
+          job: processed,
+        },
+        { status: 202 },
+      );
     }
 
-    return NextResponse.json({
-      ok: false,
-      queued: false,
-      message: "Delivery moved to dead-letter queue after max retries.",
-      job: processed,
-    }, { status: 500 });
+    return NextResponse.json(
+      {
+        ok: false,
+        queued: false,
+        message: "Delivery moved to dead-letter queue after max retries.",
+        job: processed,
+      },
+      { status: 500 },
+    );
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to dispatch integration alert." },
-      { status: 500 }
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to dispatch integration alert.",
+      },
+      { status: 500 },
     );
   }
 }

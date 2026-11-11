@@ -1,3 +1,4 @@
+import { apiAccessError } from "@/lib/api-access";
 import { NextResponse } from "next/server";
 
 import type { WorkspaceMode } from "@/lib/types";
@@ -20,10 +21,14 @@ type WorkspaceUpdateBody = {
 };
 
 export async function GET() {
+  const accessError = await apiAccessError("GET");
+  if (accessError) return accessError;
   return NextResponse.json(await getWorkspaceContext());
 }
 
 export async function POST(request: Request) {
+  const accessError = await apiAccessError("POST");
+  if (accessError) return accessError;
   const body = (await request.json()) as WorkspaceUpdateBody;
 
   if (body.mode) {
@@ -33,7 +38,10 @@ export async function POST(request: Request) {
   if (body.activeClientId) {
     const ok = await setActiveClient(body.activeClientId);
     if (!ok) {
-      return NextResponse.json({ error: "Invalid client id." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid client id." },
+        { status: 400 },
+      );
     }
   }
 

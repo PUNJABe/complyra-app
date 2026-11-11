@@ -1,5 +1,6 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { requireSession } from "@/lib/auth";
+import { mutateKV, readKV } from "@/lib/secure-kv";
+import { classifyTransactions } from "@/lib/categorization";
 
 import type {
   AuditTrailEntry,
@@ -23,9 +24,21 @@ export type StoredTransaction = {
   department: string;
   category: string;
   statementId?: string;
+  direction?: "debit" | "credit";
+  remark?: string;
+  confidence?: number;
+  needsReview?: boolean;
+  reviewReasons?: string[];
+  categorySource?: "rule" | "user" | "ai" | "unknown";
+  suggestedCategory?: string;
+  reviewedAt?: string;
 };
 
-type MockStore = {
+export type MockStore = {
+  revision?: number;
+  deletedAt?: string;
+  lastStatementAt?: string | null;
+  merchantRules?: Record<string, string>;
   workspaceName: string;
   mode: WorkspaceMode;
   clients: ClientProfile[];
@@ -44,220 +57,75 @@ type MockStore = {
   updatedAt: string;
 };
 
-const STORAGE_MODE = process.env.COMPLYRA_STORAGE_MODE?.toLowerCase() ?? "json";
-const DATA_DIR = path.join(process.cwd(), ".complyra");
-const JSON_PATH = path.join(DATA_DIR, "mock-db.json");
-const SQLITE_PATH = path.join(DATA_DIR, "mock-db.sqlite");
-
-const DEFAULT_STORE: MockStore = {
-  workspaceName: "Complyra Demo Org",
-  mode: "business",
-  clients: [
-    {
-      id: "client-complyra-demo",
-      name: "Complyra Demo Org",
-      gstin: "29ABCDE1234F1Z5",
-      pan: "ABCDE1234F",
-      sector: "Technology",
-    },
-  ],
-  activeClientId: "client-complyra-demo",
-  deadlines: [
-    {
-      id: "deadline-gst-gstr3b",
-      kind: "GST",
-      dueDate: "2026-04-20",
-      clientId: "client-complyra-demo",
-      status: "pending",
-    },
-    {
-      id: "deadline-gst-gstr1",
-      kind: "GST",
-      dueDate: "2026-04-11",
-      clientId: "client-complyra-demo",
-      status: "overdue",
-    },
-    {
-      id: "deadline-itr",
-      kind: "ITR",
-      dueDate: "2026-07-31",
-      clientId: "client-complyra-demo",
-      status: "pending",
-    },
-  ],
-  auditTrail: [
-    {
-      id: "audit-seed-1",
-      action: "workspace_initialized",
-      actor: "system",
-      details: "Seed workspace created with demo compliance controls.",
-      createdAt: new Date().toISOString(),
-    },
-  ],
-  departments: ["Marketing", "Operations", "Product", "Finance"],
-  transactions: [],
-  activeStatementId: null,
-  policyRules: [
-    {
-      id: "r1",
-      name: "High Value Approval",
-      condition: "If amount > Rs 12,000",
-      action: "Require manager + finance approval",
-      source: "manual",
-    },
-    {
-      id: "r2",
-      name: "After-hours Alcohol",
-      condition: "If category is alcohol and time is after 8 PM",
-      action: "Auto-flag as high severity",
-      source: "manual",
-    },
-    {
-      id: "r3",
-      name: "Duplicate Vendor Window",
-      condition: "If same merchant + same amount appears in 24h",
-      action: "Create fraud investigation cluster",
-      source: "manual",
-    },
-  ],
-  integrationAlerts: [],
-  integrationJobs: [],
-  integrationReceipts: [],
-  deadLetters: [],
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-};
-
-async function ensureDataDir() {
-  await mkdir(DATA_DIR, { recursive: true });
-}
-
-async function readJsonStore(): Promise<MockStore> {
-  await ensureDataDir();
-
-  try {
-    const raw = await readFile(JSON_PATH, "utf8");
-    const parsed = JSON.parse(raw) as MockStore;
-    return {
-      ...DEFAULT_STORE,
-      ...parsed,
-      mode: parsed.mode ?? DEFAULT_STORE.mode,
-      clients: parsed.clients ?? DEFAULT_STORE.clients,
-      activeClientId: parsed.activeClientId ?? DEFAULT_STORE.activeClientId,
-      deadlines: parsed.deadlines ?? DEFAULT_STORE.deadlines,
-      auditTrail: parsed.auditTrail ?? DEFAULT_STORE.auditTrail,
-      transactions: parsed.transactions ?? [],
-      activeStatementId: parsed.activeStatementId ?? null,
-      policyRules: parsed.policyRules ?? DEFAULT_STORE.policyRules,
-      integrationAlerts: parsed.integrationAlerts ?? [],
-      integrationJobs: parsed.integrationJobs ?? [],
-      integrationReceipts: parsed.integrationReceipts ?? [],
-      deadLetters: parsed.deadLetters ?? [],
-    };
-  } catch {
-    await writeJsonStore(DEFAULT_STORE);
-    return DEFAULT_STORE;
-  }
-}
-
-async function writeJsonStore(data: MockStore) {
-  await ensureDataDir();
-  await writeFile(JSON_PATH, JSON.stringify(data, null, 2), "utf8");
-}
-
-async function readSqliteStore(): Promise<MockStore> {
-  try {
-    const sqlite = await import("node:sqlite");
-    await ensureDataDir();
-    const db = new sqlite.DatabaseSync(SQLITE_PATH);
-
-    db.exec(
-      "CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);"
-    );
-
-    const row = db
-      .prepare("SELECT v FROM kv WHERE k = 'store'")
-      .get() as { v?: string } | undefined;
-
-    if (!row?.v) {
-      const seed = JSON.stringify(DEFAULT_STORE);
-      db.prepare("INSERT OR REPLACE INTO kv (k, v) VALUES ('store', ?)").run(seed);
-      db.close();
-      return DEFAULT_STORE;
-    }
-
-    const parsed = JSON.parse(row.v) as MockStore;
-    db.close();
-
-    return {
-      ...DEFAULT_STORE,
-      ...parsed,
-      mode: parsed.mode ?? DEFAULT_STORE.mode,
-      clients: parsed.clients ?? DEFAULT_STORE.clients,
-      activeClientId: parsed.activeClientId ?? DEFAULT_STORE.activeClientId,
-      deadlines: parsed.deadlines ?? DEFAULT_STORE.deadlines,
-      auditTrail: parsed.auditTrail ?? DEFAULT_STORE.auditTrail,
-      transactions: parsed.transactions ?? [],
-      activeStatementId: parsed.activeStatementId ?? null,
-      policyRules: parsed.policyRules ?? DEFAULT_STORE.policyRules,
-      integrationAlerts: parsed.integrationAlerts ?? [],
-      integrationJobs: parsed.integrationJobs ?? [],
-      integrationReceipts: parsed.integrationReceipts ?? [],
-      deadLetters: parsed.deadLetters ?? [],
-    };
-  } catch {
-    return readJsonStore();
-  }
-}
-
-async function writeSqliteStore(data: MockStore) {
-  try {
-    const sqlite = await import("node:sqlite");
-    await ensureDataDir();
-    const db = new sqlite.DatabaseSync(SQLITE_PATH);
-
-    db.exec(
-      "CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);"
-    );
-
-    db
-      .prepare("INSERT OR REPLACE INTO kv (k, v) VALUES ('store', ?)")
-      .run(JSON.stringify(data));
-
-    db.close();
-  } catch {
-    await writeJsonStore(data);
-  }
-}
-
-export async function readStore(): Promise<MockStore> {
-  if (STORAGE_MODE === "sqlite") {
-    return readSqliteStore();
-  }
-
-  return readJsonStore();
-}
-
-export async function writeStore(data: MockStore) {
-  const payload: MockStore = {
-    ...data,
-    updatedAt: new Date().toISOString(),
+export function emptyStore(): MockStore {
+  const now = new Date().toISOString();
+  return {
+    workspaceName: "My workspace",
+    mode: "business",
+    clients: [],
+    activeClientId: null,
+    deadlines: [],
+    auditTrail: [],
+    departments: [],
+    transactions: [],
+    activeStatementId: null,
+    policyRules: [],
+    integrationAlerts: [],
+    integrationJobs: [],
+    integrationReceipts: [],
+    deadLetters: [],
+    createdAt: now,
+    updatedAt: now,
+    revision: 0,
+    lastStatementAt: null,
+    merchantRules: {},
   };
-
-  if (STORAGE_MODE === "sqlite") {
-    await writeSqliteStore(payload);
-    return;
-  }
-
-  await writeJsonStore(payload);
+}
+export const workspaceKey = (userId: string) => `workspace:${userId}`;
+export async function readUserStore(userId: string): Promise<MockStore> {
+  return readKV(workspaceKey(userId), emptyStore());
+}
+export async function readStore(): Promise<MockStore> {
+  return readUserStore((await requireSession()).userId);
+}
+export async function writeStore(data: MockStore) {
+  const session = await requireSession();
+  await mutateKV(workspaceKey(session.userId), emptyStore(), (current) => {
+    if (current.deletedAt) throw new Error("Account workspace was deleted.");
+    if ((current.revision ?? 0) !== (data.revision ?? 0))
+      throw new Error("Workspace changed. Refresh and try again.");
+    Object.assign(current, data, {
+      revision: (current.revision ?? 0) + 1,
+      updatedAt: new Date().toISOString(),
+    });
+  });
+}
+export async function mutateStore<R>(
+  change: (store: MockStore) => R | Promise<R>,
+) {
+  const session = await requireSession();
+  return mutateKV(workspaceKey(session.userId), emptyStore(), async (store) => {
+    if (store.deletedAt) throw new Error("Account workspace was deleted.");
+    const result = await change(store);
+    store.revision = (store.revision ?? 0) + 1;
+    store.updatedAt = new Date().toISOString();
+    return result;
+  });
 }
 
-export async function saveWorkspace(workspaceName: string, departments: string[]) {
+export async function saveWorkspace(
+  workspaceName: string,
+  departments: string[],
+) {
   const store = await readStore();
-  const existingClient = store.clients.find((item) => item.id === (store.activeClientId ?? ""));
+  const existingClient = store.clients.find(
+    (item) => item.id === (store.activeClientId ?? ""),
+  );
   const activeClientId = existingClient?.id ?? `client-${Date.now()}`;
   const nextClients = existingClient
-    ? store.clients.map((item) => (item.id === existingClient.id ? { ...item, name: workspaceName } : item))
+    ? store.clients.map((item) =>
+        item.id === existingClient.id ? { ...item, name: workspaceName } : item,
+      )
     : [
         {
           id: activeClientId,
@@ -356,7 +224,9 @@ export async function getWorkspaceContext(): Promise<WorkspaceContextPayload> {
   };
 }
 
-export async function addAuditTrailEntry(entry: Omit<AuditTrailEntry, "id" | "createdAt">) {
+export async function addAuditTrailEntry(
+  entry: Omit<AuditTrailEntry, "id" | "createdAt">,
+) {
   const store = await readStore();
 
   await writeStore({
@@ -374,10 +244,20 @@ export async function addAuditTrailEntry(entry: Omit<AuditTrailEntry, "id" | "cr
 
 export async function appendTransactions(records: StoredTransaction[]) {
   const store = await readStore();
-  const merged = [...records, ...store.transactions].slice(0, 1000);
+  const classified = await classifyTransactions(
+    records,
+    store.merchantRules ?? {},
+    (await requireSession()).aiEnabled,
+  );
+  const merged = [...classified, ...store.transactions];
+  if (merged.length > 2000)
+    throw new Error(
+      "A workspace supports 2,000 active transactions. Export or replace your statement.",
+    );
   await writeStore({
     ...store,
     transactions: merged,
+    lastStatementAt: new Date().toISOString(),
     auditTrail: [
       {
         id: `audit-${Date.now()}`,
@@ -395,9 +275,19 @@ export async function appendTransactions(records: StoredTransaction[]) {
   return merged.length;
 }
 
-export async function replaceTransactions(records: StoredTransaction[], statementId = `statement-${Date.now()}`) {
+export async function replaceTransactions(
+  records: StoredTransaction[],
+  statementId = `statement-${Date.now()}`,
+) {
   const store = await readStore();
-  const next = records.slice(0, 1000).map((record) => ({
+  if (records.length > 2000)
+    throw new Error("Maximum 2,000 transactions per statement.");
+  const classified = await classifyTransactions(
+    records,
+    store.merchantRules ?? {},
+    (await requireSession()).aiEnabled,
+  );
+  const next = classified.map((record) => ({
     ...record,
     statementId,
   }));
@@ -406,6 +296,7 @@ export async function replaceTransactions(records: StoredTransaction[], statemen
     ...store,
     transactions: next,
     activeStatementId: statementId,
+    lastStatementAt: new Date().toISOString(),
     auditTrail: [
       {
         id: `audit-${Date.now()}`,
@@ -454,7 +345,9 @@ export async function reorderPolicyRules(orderedIds: string[]) {
     .map((id) => byId.get(id))
     .filter((rule): rule is PolicyRule => Boolean(rule));
 
-  const missing = store.policyRules.filter((rule) => !orderedIds.includes(rule.id));
+  const missing = store.policyRules.filter(
+    (rule) => !orderedIds.includes(rule.id),
+  );
 
   await writeStore({
     ...store,
@@ -512,11 +405,15 @@ export async function updateIntegrationJob(job: IntegrationDeliveryJob) {
   const store = await readStore();
   await writeStore({
     ...store,
-    integrationJobs: store.integrationJobs.map((item) => (item.id === job.id ? job : item)),
+    integrationJobs: store.integrationJobs.map((item) =>
+      item.id === job.id ? job : item,
+    ),
   });
 }
 
-export async function addIntegrationReceipt(receipt: IntegrationDeliveryReceipt) {
+export async function addIntegrationReceipt(
+  receipt: IntegrationDeliveryReceipt,
+) {
   const store = await readStore();
   await writeStore({
     ...store,

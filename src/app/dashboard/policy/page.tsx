@@ -5,6 +5,7 @@ import { Fragment } from "react";
 
 import type { PolicyPayload } from "@/lib/types";
 import { useFormatMoney } from "@/lib/use-format-money";
+import { apiFetch } from "@/lib/api-client";
 
 export default function DashboardPolicyPage() {
   const [data, setData] = useState<PolicyPayload | null>(null);
@@ -14,7 +15,7 @@ export default function DashboardPolicyPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const response = await fetch("/api/policy", { cache: "no-store" });
+        const response = await apiFetch("/api/policy", { cache: "no-store" });
         if (!response.ok) throw new Error("Failed to load policy data.");
         const payload = (await response.json()) as PolicyPayload;
         setData(payload);

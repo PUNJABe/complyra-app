@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { WorkspaceContextPayload } from "@/lib/types";
+import { apiFetch } from "@/lib/api-client";
 
 export default function AuditLogsPage() {
   const [workspace, setWorkspace] = useState<WorkspaceContextPayload | null>(null);
@@ -13,7 +14,7 @@ export default function AuditLogsPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const response = await fetch("/api/workspace", { cache: "no-store" });
+        const response = await apiFetch("/api/workspace", { cache: "no-store" });
         if (!response.ok) throw new Error("Failed to load audit logs.");
         setWorkspace((await response.json()) as WorkspaceContextPayload);
       } catch (requestError) {

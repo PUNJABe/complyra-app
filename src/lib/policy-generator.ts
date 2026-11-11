@@ -28,13 +28,13 @@ export interface CompliancePolicy {
  */
 function fallbackPolicy(
   categoryBreakdown: Record<string, number>,
-  totalTransactions: number
+  totalTransactions: number,
 ): BudgetPolicy[] {
   // Estimate monthly average (assuming data represents recent activity)
   const estimatedMonths = Math.max(1, Math.ceil(totalTransactions / 30));
-  
+
   const budgets: BudgetPolicy[] = [];
-  
+
   // Standard categories with priority
   const standardCategories = [
     "Food",
@@ -46,17 +46,17 @@ function fallbackPolicy(
     "Rent",
     "Other",
   ];
-  
+
   for (const category of standardCategories) {
     const amount = categoryBreakdown[category] || 0;
-    
+
     if (amount > 0) {
       // Monthly average
       const monthlyAvg = amount / estimatedMonths;
-      
+
       // Suggested limit = average + 10% buffer for flexibility
       const suggestedLimit = Math.round(monthlyAvg * 1.1);
-      
+
       budgets.push({
         category,
         monthlyLimit: suggestedLimit,
@@ -65,7 +65,7 @@ function fallbackPolicy(
       });
     }
   }
-  
+
   // Add any unknown categories
   for (const [cat, amount] of Object.entries(categoryBreakdown)) {
     if (!standardCategories.includes(cat) && amount > 0) {
@@ -78,21 +78,24 @@ function fallbackPolicy(
       });
     }
   }
-  
+
   return budgets.sort((a, b) => b.monthlyLimit - a.monthlyLimit);
 }
 
 function formatBreakdown(categoryBreakdown: Record<string, number>) {
   const entries = Object.entries(categoryBreakdown)
     .sort((a, b) => b[1] - a[1])
-    .map(([category, amount]) => `${category}: ₹${Math.round(amount).toLocaleString("en-IN")}`);
+    .map(
+      ([category, amount]) =>
+        `${category}: ₹${Math.round(amount).toLocaleString("en-IN")}`,
+    );
 
   return entries.length ? entries.join("; ") : "No spend categories found.";
 }
 
 export async function generateAIPolicy(
   categoryBreakdown: Record<string, number>,
-  totalTransactions: number
+  totalTransactions: number,
 ): Promise<BudgetPolicy[]> {
   const fallback = fallbackPolicy(categoryBreakdown, totalTransactions);
 
@@ -109,13 +112,25 @@ export async function generateAIPolicy(
     maxTokens: 700,
   });
 
-  const budgets = aiBudgets.budgets
-    .filter((budget) => budget.category && Number.isFinite(budget.monthlyLimit) && Number.isFinite(budget.baseAmount))
+  const budgets = (
+    Array.isArray(aiBudgets?.budgets) ? aiBudgets.budgets : fallback
+  )
+    .filter(
+      (budget) =>
+        budget &&
+        typeof budget.category === "string" &&
+        Object.hasOwn(categoryBreakdown, budget.category) &&
+        Number.isFinite(budget.monthlyLimit) &&
+        Number.isFinite(budget.baseAmount),
+    )
     .map((budget) => ({
       category: budget.category,
       monthlyLimit: Math.max(0, Math.round(budget.monthlyLimit)),
       baseAmount: Math.max(0, Math.round(budget.baseAmount)),
-      confidence: typeof budget.confidence === "number" ? Math.min(1, Math.max(0, budget.confidence)) : 0.8,
+      confidence:
+        typeof budget.confidence === "number"
+          ? Math.min(1, Math.max(0, budget.confidence))
+          : 0.8,
     }))
     .sort((a, b) => b.monthlyLimit - a.monthlyLimit);
 
@@ -128,13 +143,13 @@ export async function generateAIPolicy(
 export function createPolicy(
   budgets: BudgetPolicy[],
   mode: "ai_auto" | "manual" | "hybrid" = "ai_auto",
-  savingsTarget: number = 0
+  savingsTarget: number = 0,
 ): CompliancePolicy {
   const totalMonthlyBudget = budgets.reduce(
     (sum, b) => sum + b.monthlyLimit,
-    0
+    0,
   );
-  
+
   return {
     mode,
     budgets,
@@ -149,14 +164,14 @@ export function createPolicy(
  * Generate suggested budgets with explanations
  */
 export function generateWithExplanations(
-  categoryBreakdown: Record<string, number>
+  categoryBreakdown: Record<string, number>,
 ): Promise<Array<{ category: string; suggested: number; reason: string }>> {
   return generateAIPolicy(categoryBreakdown, 30).then((estimated) =>
     estimated.map((budget) => ({
       category: budget.category,
       suggested: budget.monthlyLimit,
       reason: `Based on your average spending of ₹${Math.round(budget.baseAmount)}/month`,
-    }))
+    })),
   );
 }
 
@@ -165,11 +180,11 @@ export function generateWithExplanations(
  */
 export function calculateTotals(
   policy: CompliancePolicy,
-  monthlyIncome: number
+  monthlyIncome: number,
 ) {
   const totalSpend = policy.totalMonthlyBudget;
   const remaining = monthlyIncome - totalSpend;
-  
+
   return {
     income: monthlyIncome,
     totalSpend,

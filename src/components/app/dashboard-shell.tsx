@@ -7,7 +7,6 @@ import {
   Bell,
   FileBarChart2,
   FolderUp,
-  Gauge,
   LayoutDashboard,
   Menu,
   Settings,
@@ -18,14 +17,26 @@ import {
   LogOut,
 } from "lucide-react";
 import type { WorkspaceContextPayload, WorkspaceMode } from "@/lib/types";
+import { apiFetch } from "@/lib/api-client";
+import { WorkspaceAssistant } from "./workspace-assistant";
 import { CurrencyToggle } from "./currency-toggle";
 import { ThemeToggle } from "./theme-toggle";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  {
+    href: "/dashboard/transactions",
+    label: "Transaction Review",
+    icon: ClipboardList,
+  },
+  { href: "/dashboard/chat", label: "Finance Assistant", icon: Sparkles },
   { href: "/dashboard/upload", label: "Upload Data", icon: FolderUp },
   { href: "/dashboard/reports", label: "Reports", icon: FileBarChart2 },
-  { href: "/dashboard/spend-analysiser", label: "Spend Analysiser", icon: ScrollText },
+  {
+    href: "/dashboard/spend-analysiser",
+    label: "Spend Analysis",
+    icon: ScrollText,
+  },
   { href: "/dashboard/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/dashboard/insights", label: "AI Insights", icon: Sparkles },
   { href: "/dashboard/audit-logs", label: "Audit Logs", icon: ClipboardList },
@@ -37,14 +48,20 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [workspace, setWorkspace] = useState<WorkspaceContextPayload | null>(null);
-  const [riskSummary, setRiskSummary] = useState<{ riskyCount: number; missingInvoices: number } | null>(null);
+  const [workspace, setWorkspace] = useState<WorkspaceContextPayload | null>(
+    null,
+  );
+  const [riskSummary, setRiskSummary] = useState<{
+    riskyCount: number;
+    missingInvoices: number;
+  } | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [newClient, setNewClient] = useState("");
 
   const loadWorkspace = async () => {
     const [workspaceResponse, complianceResponse] = await Promise.all([
-      fetch("/api/workspace", { cache: "no-store" }),
-      fetch("/api/compliance", { cache: "no-store" }),
+      apiFetch("/api/workspace", { cache: "no-store" }),
+      apiFetch("/api/compliance", { cache: "no-store" }),
     ]);
     if (workspaceResponse.ok) {
       setWorkspace((await workspaceResponse.json()) as WorkspaceContextPayload);
@@ -64,6 +81,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     // Defer initial fetch so state updates are not performed synchronously in the effect body.
     const frame = window.requestAnimationFrame(() => {
       void loadWorkspace();
+      void apiFetch("/api/auth/session")
+        .then((r) => r.json())
+        .then((data) => setIsAdmin(data.session?.role === "admin"))
+        .catch(() => {});
     });
 
     return () => {
@@ -72,7 +93,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const updateMode = async (mode: WorkspaceMode) => {
-    const response = await fetch("/api/workspace", {
+    const response = await apiFetch("/api/workspace", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode }),
@@ -84,7 +105,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   };
 
   const switchClient = async (clientId: string) => {
-    const response = await fetch("/api/workspace", {
+    const response = await apiFetch("/api/workspace", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ activeClientId: clientId }),
@@ -98,7 +119,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const addClient = async () => {
     const trimmed = newClient.trim();
     if (!trimmed) return;
-    const response = await fetch("/api/workspace", {
+    const response = await apiFetch("/api/workspace", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ addClient: { name: trimmed } }),
@@ -112,21 +133,25 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     setLoggingOut(true);
-    await fetch("/api/auth/logout", { method: "POST" });
+    await apiFetch("/api/auth/logout", { method: "POST" });
     router.push("/auth/login");
     router.refresh();
   };
 
   return (
-    <div className="grid min-h-screen grid-cols-1 gap-4 p-4 md:grid-cols-[auto_minmax(0,1fr)_320px]">
+    <div className="grid min-h-screen grid-cols-1 gap-4 p-4 lg:grid-cols-[auto_minmax(0,1fr)] xl:grid-cols-[auto_minmax(0,1fr)_300px]">
       <aside
         className={`rounded-3xl border border-ink/10 bg-white/85 p-3 backdrop-blur-md transition-all duration-300 ${
-          sidebarCollapsed ? "w-[82px]" : "w-[250px]"
+          sidebarCollapsed ? "w-full lg:w-[82px]" : "w-full lg:w-[250px]"
         }`}
       >
         <div className="mb-4 flex items-center justify-between">
-          <div className={`flex items-center gap-2 ${sidebarCollapsed ? "justify-center" : ""}`}>
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1E3A8A] text-white">CR</div>
+          <div
+            className={`flex items-center gap-2 ${sidebarCollapsed ? "justify-center" : ""}`}
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1E3A8A] text-white">
+              CR
+            </div>
             {!sidebarCollapsed && (
               <div>
                 <p className="text-sm font-semibold text-ink">Complyra</p>
@@ -144,9 +169,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="space-y-1">
+        <nav className="grid grid-cols-2 gap-1 lg:block lg:space-y-1">
           {navItems.map((item) => {
-            const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            const active =
+              pathname === item.href ||
+              (item.href !== "/dashboard" && pathname.startsWith(item.href));
             const Icon = item.icon;
             return (
               <Link
@@ -164,6 +191,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="mt-3 block rounded-xl border border-emerald-500/30 px-3 py-2.5 text-sm font-medium text-emerald-700"
+            >
+              Admin control panel ?
+            </Link>
+          )}
         </nav>
 
         <button
@@ -173,7 +208,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           className={`mt-4 flex w-full items-center gap-2 rounded-xl border border-ink/15 px-3 py-2.5 text-sm font-medium text-ink/70 transition hover:border-ink/30 ${sidebarCollapsed ? "justify-center" : ""}`}
         >
           <LogOut size={15} />
-          {!sidebarCollapsed && <span>{loggingOut ? "Signing out..." : "Sign out"}</span>}
+          {!sidebarCollapsed && (
+            <span>{loggingOut ? "Signing out..." : "Sign out"}</span>
+          )}
         </button>
       </aside>
 
@@ -181,8 +218,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <header className="mb-4 rounded-3xl border border-ink/10 bg-white/88 px-4 py-3 backdrop-blur-md md:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Secure Session Active</p>
-              <h1 className="text-xl font-semibold text-ink md:text-2xl">Finance Command Center</h1>
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">
+                Secure Session Active
+              </p>
+              <h1 className="text-xl font-semibold text-ink md:text-2xl">
+                Finance Command Center
+              </h1>
               <p className="text-sm text-ink/65">
                 {workspace?.mode === "personal"
                   ? "Personal mode: savings and tax optimization"
@@ -193,7 +234,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                 <ShieldCheck size={14} />
-                Encrypted
+                Verified access
               </div>
               <div className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
                 <Bell size={14} />
@@ -217,72 +258,47 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
 
-            {workspace?.mode === "business" && (
-              <>
-                <select
-                  value={workspace.activeClientId ?? ""}
-                  onChange={(event) => void switchClient(event.target.value)}
-                  className="rounded-full border border-ink/20 bg-white px-3 py-2 text-sm text-ink/80"
-                >
-                  {workspace.clients.map((client) => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
-                  ))}
-                </select>
-                <input
-                  value={newClient}
-                  onChange={(event) => setNewClient(event.target.value)}
-                  placeholder="Add client"
-                  className="w-36 rounded-full border border-ink/20 bg-white px-3 py-2 text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={addClient}
-                  className="rounded-full border border-ink/20 bg-white px-3 py-2 text-sm font-medium text-ink/80"
-                >
-                  Add
-                </button>
-              </>
-            )}
-            <CurrencyToggle />
+              {workspace?.mode === "business" && (
+                <>
+                  <select
+                    value={workspace.activeClientId ?? ""}
+                    onChange={(event) => void switchClient(event.target.value)}
+                    className="rounded-full border border-ink/20 bg-white px-3 py-2 text-sm text-ink/80"
+                  >
+                    {workspace.clients.map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={newClient}
+                    onChange={(event) => setNewClient(event.target.value)}
+                    placeholder="Add client"
+                    className="w-36 rounded-full border border-ink/20 bg-white px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={addClient}
+                    className="rounded-full border border-ink/20 bg-white px-3 py-2 text-sm font-medium text-ink/80"
+                  >
+                    Add
+                  </button>
+                </>
+              )}
+              <CurrencyToggle />
               <ThemeToggle />
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-        <section className="rounded-3xl border border-ink/10 bg-white/86 p-4 md:p-5">{children}</section>
+        <section className="rounded-3xl border border-ink/10 bg-white/86 p-4 md:p-5">
+          {children}
+        </section>
       </main>
 
-      <aside className="hidden rounded-3xl border border-ink/10 bg-white/88 p-4 backdrop-blur-md md:block">
-        <div className="flex items-center gap-2">
-          <Sparkles size={16} className="text-[#1E3A8A]" />
-          <p className="text-sm font-semibold">AI Insights</p>
-        </div>
-        <div className="mt-3 space-y-3">
-          <article className="rounded-2xl border border-ink/10 bg-canvas/70 p-3">
-            <p className="text-xs text-ink/55">Trend</p>
-            <p className="mt-1 text-sm font-medium text-ink/80">Travel expenses increased by 23% this month.</p>
-          </article>
-          <article className="rounded-2xl border border-ink/10 bg-canvas/70 p-3">
-            <p className="text-xs text-ink/55">Compliance</p>
-            <p className="mt-1 text-sm font-medium text-ink/80">{riskSummary?.riskyCount ?? 0} transactions need policy review.</p>
-          </article>
-          <article className="rounded-2xl border border-ink/10 bg-canvas/70 p-3">
-            <p className="text-xs text-ink/55">Missing Docs</p>
-            <p className="mt-1 text-sm font-medium text-ink/80">{riskSummary?.missingInvoices ?? 0} receipts are missing invoices.</p>
-          </article>
-
-          <div className="rounded-2xl border border-[#1E3A8A]/20 bg-[#1E3A8A]/5 p-3">
-            <p className="text-xs font-semibold text-[#1E3A8A]">One-click summary</p>
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/reports")}
-              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[#1E3A8A] px-3 py-2 text-xs font-semibold text-white"
-            >
-              <Gauge size={14} />
-              Generate CA-ready report
-            </button>
-          </div>
-        </div>
+      <aside className="rounded-3xl border border-ink/10 bg-white/88 p-4 backdrop-blur-md lg:col-span-2 xl:col-span-1">
+        <WorkspaceAssistant />
       </aside>
     </div>
   );

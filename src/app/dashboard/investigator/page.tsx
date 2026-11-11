@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { SpendGraphCard } from "@/components/app/spend-graph";
 import type { InvestigationPayload } from "@/lib/types";
 import { useFormatMoney } from "@/lib/use-format-money";
+import { apiFetch } from "@/lib/api-client";
 
 export default function InvestigatorPage() {
   const [data, setData] = useState<InvestigationPayload | null>(null);
@@ -14,7 +15,7 @@ export default function InvestigatorPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const response = await fetch("/api/investigation", { cache: "no-store" });
+        const response = await apiFetch("/api/investigation", { cache: "no-store" });
         if (!response.ok) throw new Error("Failed to load investigation data.");
         setData((await response.json()) as InvestigationPayload);
       } catch (requestError) {

@@ -1,85 +1,45 @@
 import { NextResponse } from "next/server";
-
-import { addAuditTrailEntry } from "@/lib/storage";
-import { authenticate, type AuthProvider, AUTH_COOKIE, encodeSession } from "@/lib/auth";
-import type { UserRole } from "@/lib/types";
-
-type LoginBody = {
-  email?: string;
-  password?: string;
-  provider?: AuthProvider;
-  role?: UserRole;
-};
-
+import {
+  authenticate,
+  AUTH_COOKIE,
+  normalizeEmail,
+  rateLimit,
+  sessionCookieOptions,
+} from "@/lib/auth";
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as LoginBody;
-
-    const email = body.email?.trim();
-    const password = body.password ?? "";
-    const provider: AuthProvider = body.provider ?? "mock";
-    const role: UserRole = body.role ?? "admin";
-
-    if (!email || !password) {
-      return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
-    }
-
-    const result = await authenticate(provider, email, password);
-
-    if (!result.ok) {
-      try {
-        await addAuditTrailEntry({
-          action: "login_failed",
-          actor: email ?? "unknown",
-          details: `Failed login attempt via ${provider}.`,
-          resource: "auth",
-          severity: "warning",
-          ip: request.headers.get("x-forwarded-for") ?? "unknown",
-          userAgent: request.headers.get("user-agent") ?? "unknown",
-        });
-      } catch {
-        // Audit logging must not block auth responses.
-      }
-      return NextResponse.json({ error: result.message ?? "Authentication failed." }, { status: 401 });
-    }
-
-    const now = Date.now();
-    const session = encodeSession({
-      provider,
-      email,
-      role,
-      createdAt: now,
-      lastSeenAt: now,
-    });
-
-    try {
-      await addAuditTrailEntry({
-        action: "login_success",
-        actor: email,
-        details: `Signed in via ${provider} as ${role}.`,
-        resource: "auth",
-        severity: "info",
-        ip: request.headers.get("x-forwarded-for") ?? "unknown",
-        userAgent: request.headers.get("user-agent") ?? "unknown",
-      });
-    } catch {
-      // Audit logging must not block successful login.
-    }
-
+    const body = await request.json();
+    const email = normalizeEmail(body.email);
+    if (
+      !email ||
+      typeof body.password !== "string" ||
+      body.password.length > 128
+    )
+      return NextResponse.json(
+        { error: "Email and password are required." },
+        { status: 400 },
+      );
+    if (!(await rateLimit(`login:${email}`, 5)))
+      return NextResponse.json(
+        { error: "Too many attempts. Try again in 15 minutes." },
+        { status: 429 },
+      );
+    const token = await authenticate(email, body.password);
+    if (!token)
+      return NextResponse.json(
+        {
+          error:
+            "Unable to sign in. Check your credentials and verify your email.",
+        },
+        { status: 401 },
+      );
     const response = NextResponse.json({ ok: true });
-    response.cookies.set(AUTH_COOKIE, session, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
-
+    response.cookies.set(AUTH_COOKIE, token, sessionCookieOptions);
     return response;
   } catch {
     return NextResponse.json(
-      { error: "Unable to process login right now. Please try again." },
-      { status: 500 }
+      { error: "Sign-in is temporarily unavailable." },
+      { status: 503 },
     );
   }
 }

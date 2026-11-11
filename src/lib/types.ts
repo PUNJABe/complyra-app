@@ -159,7 +159,13 @@ export type OverviewPayload = {
   kpis: Array<{ label: string; value: string; hint: string }>;
   trend: Array<{ month: string; value: number }>;
   timeline: string[];
-  recentFlags: Array<{ id: string; merchant: string; reason: string; amount: number; severity: "high" | "medium" }>;
+  recentFlags: Array<{
+    id: string;
+    merchant: string;
+    reason: string;
+    amount: number;
+    severity: "high" | "medium";
+  }>;
   charts: {
     line: LineChartData;
     donut: DonutChartData;
@@ -278,7 +284,12 @@ export type WorkspaceContextPayload = {
 
 export type ComplianceRiskFinding = {
   id: string;
-  kind: "missing-invoice" | "gst-mismatch" | "duplicate-expense" | "suspicious-vendor";
+  kind:
+    | "missing-invoice"
+    | "gst-mismatch"
+    | "duplicate-expense"
+    | "suspicious-vendor"
+    | "category-review";
   severity: "high" | "medium" | "low";
   merchant: string;
   amount: number;
@@ -307,17 +318,17 @@ export type ChatResponse = {
   };
 };
 
-  export type DepartmentScore = {
-    name: string;
-    compliance: number;
-    violations: number;
-    totalTransactions: number;
-    trend: "up" | "down" | "stable";
-  };
+export type DepartmentScore = {
+  name: string;
+  compliance: number;
+  violations: number;
+  totalTransactions: number;
+  trend: "up" | "down" | "stable";
+};
 
-  export type ComplianceMetric = {
-    name: string;
-    status: "compliant" | "warning" | "non-compliant";
-    percentage: number;
-    description: string;
-  };
+export type ComplianceMetric = {
+  name: string;
+  status: "compliant" | "warning" | "non-compliant";
+  percentage: number;
+  description: string;
+};

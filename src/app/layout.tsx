@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
@@ -20,20 +21,22 @@ export const metadata: Metadata = {
   description: "Intelligent compliance system for modern finance teams.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  if (process.env.NEXT_STATIC_EXPORT !== "true")
+    await headers(); // Per-request CSP nonces require dynamic rendering.
   return (
     <html
       lang="en"
       className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-          <ThemeProvider>
-           <CurrencyProvider>{children}</CurrencyProvider>
-          </ThemeProvider>
+        <ThemeProvider>
+          <CurrencyProvider>{children}</CurrencyProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

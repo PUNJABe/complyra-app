@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { PolicyPayload, PolicyRule, PolicyTemplate } from "@/lib/types";
+import { apiFetch } from "@/lib/api-client";
 
 export default function PolicyBuilderPage() {
   const [rules, setRules] = useState<PolicyRule[]>([]);
@@ -17,20 +18,27 @@ export default function PolicyBuilderPage() {
     const run = async () => {
       try {
         const [rulesResponse, policyResponse] = await Promise.all([
-          fetch("/api/policy-rules", { cache: "no-store" }),
-          fetch("/api/policy", { cache: "no-store" }),
+          apiFetch("/api/policy-rules", { cache: "no-store" }),
+          apiFetch("/api/policy", { cache: "no-store" }),
         ]);
 
         if (!rulesResponse.ok) throw new Error("Failed to load policy rules.");
-        if (!policyResponse.ok) throw new Error("Failed to load policy templates.");
+        if (!policyResponse.ok)
+          throw new Error("Failed to load policy templates.");
 
-        const rulesPayload = (await rulesResponse.json()) as { rules: PolicyRule[] };
+        const rulesPayload = (await rulesResponse.json()) as {
+          rules: PolicyRule[];
+        };
         const policyPayload = (await policyResponse.json()) as PolicyPayload;
         setRules(rulesPayload.rules);
         setTemplates(policyPayload.templates);
         setSelectedTemplateId(policyPayload.templates[0]?.id ?? "");
       } catch (requestError) {
-        setError(requestError instanceof Error ? requestError.message : "Unexpected rule loading error.");
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unexpected rule loading error.",
+        );
       } finally {
         setLoading(false);
       }
@@ -41,11 +49,18 @@ export default function PolicyBuilderPage() {
 
   const template = useMemo(
     () =>
-      rules.map((rule, index) => `${index + 1}. ${rule.name}: ${rule.condition} => ${rule.action}`).join("\n"),
-    [rules]
+      rules
+        .map(
+          (rule, index) =>
+            `${index + 1}. ${rule.name}: ${rule.condition} => ${rule.action}`,
+        )
+        .join("\n"),
+    [rules],
   );
 
-  const selectedTemplate = templates.find((templateItem) => templateItem.id === selectedTemplateId) ?? templates[0];
+  const selectedTemplate =
+    templates.find((templateItem) => templateItem.id === selectedTemplateId) ??
+    templates[0];
 
   const onDrop = (targetId: string) => {
     if (!draggedRuleId || draggedRuleId === targetId) return;
@@ -62,7 +77,7 @@ export default function PolicyBuilderPage() {
 
     const persist = async () => {
       try {
-        const response = await fetch("/api/policy-rules", {
+        const response = await apiFetch("/api/policy-rules", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orderedIds: next.map((rule) => rule.id) }),
@@ -71,7 +86,11 @@ export default function PolicyBuilderPage() {
         if (!response.ok) throw new Error("Failed to persist rule order.");
         setStatus("Rule priority updated.");
       } catch (requestError) {
-        setError(requestError instanceof Error ? requestError.message : "Unexpected rule ordering error.");
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unexpected rule ordering error.",
+        );
       }
     };
 
@@ -85,13 +104,28 @@ export default function PolicyBuilderPage() {
   return (
     <div className="space-y-5">
       <section className="rounded-2xl border border-ink/10 bg-white/82 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/55">No-code Compliance Engine</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight">Drag-drop policy builder</h2>
-        <p className="mt-1 text-sm text-ink/70">Reorder rule priority and export human-readable policy logic templates.</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/55">
+          Policy drafting workspace
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+          Drag-drop policy builder
+        </h2>
+        <p className="mt-1 text-sm text-ink/70">
+          Organize and export human-readable policy drafts. Free-text conditions
+          are not automatically executed as regulatory controls.
+        </p>
       </section>
 
-      {status && <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{status}</p>}
-      {error && <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>}
+      {status && (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {status}
+        </p>
+      )}
+      {error && (
+        <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </p>
+      )}
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <article className="rounded-2xl border border-ink/10 bg-white/82 p-5">
@@ -113,7 +147,9 @@ export default function PolicyBuilderPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-ink/70">{rule.condition}</p>
-                <p className="mt-1 text-xs text-ink/70">Action: {rule.action}</p>
+                <p className="mt-1 text-xs text-ink/70">
+                  Action: {rule.action}
+                </p>
               </div>
             ))}
           </div>
@@ -121,18 +157,28 @@ export default function PolicyBuilderPage() {
 
         <article className="rounded-2xl border border-ink/10 bg-white/82 p-5">
           <h3 className="text-base font-semibold">Shareable Template</h3>
-          <textarea readOnly value={template} className="mt-3 min-h-64 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-sm" />
+          <textarea
+            readOnly
+            value={template}
+            className="mt-3 min-h-64 w-full rounded-xl border border-ink/20 bg-white px-3 py-2.5 text-sm"
+          />
         </article>
       </section>
 
       <section className="rounded-2xl border border-ink/10 bg-white/82 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/55">Industry Templates</p>
-            <h3 className="mt-1 text-base font-semibold">Starter policies by sector</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/55">
+              Industry Templates
+            </p>
+            <h3 className="mt-1 text-base font-semibold">
+              Starter policies by sector
+            </h3>
           </div>
           {selectedTemplate && (
-            <p className="text-xs text-ink/60">Selected: {selectedTemplate.industry}</p>
+            <p className="text-xs text-ink/60">
+              Selected: {selectedTemplate.industry}
+            </p>
           )}
         </div>
 
@@ -145,23 +191,36 @@ export default function PolicyBuilderPage() {
                 onClick={() => setSelectedTemplateId(templateItem.id)}
                 className={`rounded-2xl border p-4 text-left transition ${selectedTemplateId === templateItem.id ? "border-ink bg-canvas" : "border-ink/10 bg-white hover:border-ink/25"}`}
               >
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">{templateItem.industry}</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">
+                  {templateItem.industry}
+                </p>
                 <p className="mt-2 font-semibold">{templateItem.name}</p>
-                <p className="mt-1 text-sm text-ink/70">{templateItem.description}</p>
+                <p className="mt-1 text-sm text-ink/70">
+                  {templateItem.description}
+                </p>
               </button>
             ))}
           </div>
 
           {selectedTemplate && (
             <article className="rounded-2xl border border-ink/10 bg-canvas/60 p-4">
-              <h4 className="text-base font-semibold">{selectedTemplate.name}</h4>
-              <p className="mt-1 text-sm text-ink/70">{selectedTemplate.description}</p>
+              <h4 className="text-base font-semibold">
+                {selectedTemplate.name}
+              </h4>
+              <p className="mt-1 text-sm text-ink/70">
+                {selectedTemplate.description}
+              </p>
 
               <div className="mt-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Focus areas</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">
+                  Focus areas
+                </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {selectedTemplate.focus.map((focus) => (
-                    <span key={focus} className="rounded-full border border-ink/15 bg-white px-3 py-1 text-xs text-ink/70">
+                    <span
+                      key={focus}
+                      className="rounded-full border border-ink/15 bg-white px-3 py-1 text-xs text-ink/70"
+                    >
                       {focus}
                     </span>
                   ))}
@@ -169,10 +228,15 @@ export default function PolicyBuilderPage() {
               </div>
 
               <div className="mt-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Rules</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">
+                  Rules
+                </p>
                 <ul className="mt-2 space-y-2 text-sm text-ink/75">
                   {selectedTemplate.rules.map((rule) => (
-                    <li key={rule} className="rounded-xl border border-ink/10 bg-white px-3 py-2">
+                    <li
+                      key={rule}
+                      className="rounded-xl border border-ink/10 bg-white px-3 py-2"
+                    >
                       {rule}
                     </li>
                   ))}

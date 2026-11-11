@@ -1,0 +1,15 @@
+export const CATEGORIES = [
+  "Food",
+  "Travel",
+  "Subscriptions",
+  "Utilities",
+  "Shopping",
+  "Fuel",
+  "Rent",
+  "Transfer",
+  "Healthcare",
+  "Education",
+  "Salary",
+  "Taxes",
+  "Other",
+] as const;

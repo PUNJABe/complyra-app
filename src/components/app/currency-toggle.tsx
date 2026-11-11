@@ -1,27 +1,10 @@
-"use client";
-
-import { useCurrency } from "@/lib/currency-context";
-
 export function CurrencyToggle() {
-  const { currency, setCurrency, loading } = useCurrency();
-
-  if (loading) return null;
-
   return (
-    <div className="flex items-center gap-2 rounded-full border border-ink/20 bg-white p-1">
-      {(["USD", "INR"] as const).map((curr) => (
-        <button
-          key={curr}
-          onClick={() => setCurrency(curr)}
-          className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-            currency === curr
-              ? "bg-ink text-canvas"
-              : "text-ink/65 hover:text-ink"
-          }`}
-        >
-          {curr}
-        </button>
-      ))}
-    </div>
+    <span
+      className="rounded-full border border-ink/15 px-3 py-2 text-xs text-ink/60"
+      title="Amounts are shown in their native statement currency. Import INR statements only."
+    >
+      INR ? Statement currency
+    </span>
   );
 }

@@ -1,282 +1,193 @@
 "use client";
-
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AlertTriangle, CircleDollarSign, PieChart, ShieldCheck } from "lucide-react";
-
-import { DonutChartCard, PieChartCard, SpendTrendCard, StackedBarCard } from "@/components/app/charts";
-import type { ComplianceCheckPayload, OverviewPayload, WorkspaceContextPayload } from "@/lib/types";
-import { useFormatMoney } from "@/lib/use-format-money";
-
+import { ArrowRight, FileUp, ShieldCheck } from "lucide-react";
+import {
+  DonutChartCard,
+  LineChartCard,
+  StackedBarCard,
+} from "@/components/app/charts";
+import type { OverviewPayload } from "@/lib/types";
+import type { StoredTransaction } from "@/lib/storage";
+import { apiFetch } from "@/lib/api-client";
+const money = (value: number) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(value);
 export default function DashboardPage() {
-  const [data, setData] = useState<OverviewPayload | null>(null);
-  const [workspace, setWorkspace] = useState<WorkspaceContextPayload | null>(null);
-  const [compliance, setCompliance] = useState<ComplianceCheckPayload | null>(null);
-  const [error, setError] = useState<string>("");
-  const formatMoney = useFormatMoney();
-
+  const [overview, setOverview] = useState<OverviewPayload | null>(null);
+  const [transactions, setTransactions] = useState<StoredTransaction[]>([]);
+  const [error, setError] = useState("");
   useEffect(() => {
-    const run = async () => {
+    let active = true;
+    async function load() {
       try {
-        const [overviewResponse, workspaceResponse, complianceResponse] = await Promise.all([
-          fetch("/api/overview", { cache: "no-store" }),
-          fetch("/api/workspace", { cache: "no-store" }),
-          fetch("/api/compliance", { cache: "no-store" }),
+        const [a, b] = await Promise.all([
+          apiFetch("/api/overview", { cache: "no-store" }),
+          apiFetch("/api/transactions", { cache: "no-store" }),
         ]);
-
-        if (!overviewResponse.ok) throw new Error("Failed to load dashboard data.");
-        if (!workspaceResponse.ok) throw new Error("Failed to load workspace context.");
-        if (!complianceResponse.ok) throw new Error("Failed to load compliance checks.");
-
-        setData((await overviewResponse.json()) as OverviewPayload);
-        setWorkspace((await workspaceResponse.json()) as WorkspaceContextPayload);
-        setCompliance((await complianceResponse.json()) as ComplianceCheckPayload);
-      } catch (requestError) {
-        setError(requestError instanceof Error ? requestError.message : "Unexpected error");
+        if (!a.ok || !b.ok)
+          throw new Error(
+            "Unable to load your workspace. Please refresh or sign in again.",
+          );
+        const [overview, records] = await Promise.all([a.json(), b.json()]);
+        if (active) {
+          setOverview(overview);
+          setTransactions(records.transactions);
+        }
+      } catch (error) {
+        if (active)
+          setError(
+            error instanceof Error ? error.message : "Unable to load records.",
+          );
       }
-    };
-
-    run();
-  }, []);
-
-  if (error) {
-    return <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p>;
-  }
-
-  if (!data || !workspace || !compliance) {
-    return <p className="text-sm text-ink/70">Loading dashboard...</p>;
-  }
-
-  const personalHealthScore = Math.max(45, Math.min(96, 72 + Math.round((100 - compliance.summary.riskyCount * 3) / 4)));
-  const personalTaxSaving = formatMoney(15000);
-  const totalFromLine = data.charts.line.points.reduce((sum, point) => sum + point.value, 0);
-  const totalFromDonut = data.charts.donut.segments.reduce((sum, segment) => sum + segment.value, 0);
-  const totalFromFlags = data.recentFlags.reduce((sum, flag) => sum + flag.amount, 0);
-  const totalExpenses = totalFromLine || totalFromDonut || totalFromFlags;
-
-  const categoryTotals = new Map<string, number>();
-  for (const bar of data.charts.stacked.bars) {
-    for (const segment of bar.segments) {
-      categoryTotals.set(segment.label, (categoryTotals.get(segment.label) ?? 0) + segment.value);
     }
-  }
-
-  const sortedCategoryTotals = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1]);
-  const topCategory = sortedCategoryTotals[0]?.[0] ?? "Unassigned";
-  const totalCategorySpend = sortedCategoryTotals.reduce((sum, item) => sum + item[1], 0);
-  const topCategoryBreakdown = sortedCategoryTotals.slice(0, 3).map(([label, amount]) => ({
-    label,
-    amount,
-    percent: totalCategorySpend ? Math.round((amount / totalCategorySpend) * 100) : 0,
-  }));
-  const complianceScore = Math.max(40, 100 - compliance.summary.riskyCount * 3);
-  const riskRatio = compliance.summary.totalChecked
-    ? Math.round((compliance.summary.riskyCount / compliance.summary.totalChecked) * 100)
-    : 0;
-
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+  if (error)
+    return (
+      <p
+        role="alert"
+        className="rounded-xl bg-rose-500/10 p-4 text-sm text-rose-600"
+      >
+        {error}
+      </p>
+    );
+  if (!overview)
+    return (
+      <p className="py-12 text-center text-sm text-ink/50">
+        Loading your financial picture...
+      </p>
+    );
+  const expenses = transactions
+    .filter((t) => t.direction !== "credit")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const income = transactions
+    .filter((t) => t.direction === "credit")
+    .reduce((sum, t) => sum + t.amount, 0);
+  const pending = transactions.filter((t) => t.needsReview).length;
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border border-ink/10 bg-white/85 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink/55">Positioning</p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight">
-          {workspace.mode === "personal"
-            ? "Personal finance intelligence + savings copilot"
-            : "AI-powered finance investigator + compliance copilot"}
-        </h2>
-        <p className="mt-1 text-sm text-ink/70">
-          {workspace.mode === "personal"
-            ? "Track spending behavior, forecast monthly cash burn, and receive tax-saving suggestions."
-            : "Not just expense tracking. Prioritized CA-grade decisions with explainable compliance checks."}
-        </p>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-2xl border border-ink/10 bg-white/85 p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Total Expenses</p>
-            <CircleDollarSign size={16} className="text-[#1E3A8A]" />
-          </div>
-          <p className="mt-2 text-3xl font-semibold tracking-tight">{formatMoney(totalExpenses)}</p>
-          <p className="mt-1 text-xs text-ink/65">Derived from current uploaded statement cycle</p>
-        </article>
-
-        <article className="rounded-2xl border border-ink/10 bg-white/85 p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Compliance Score</p>
-            <ShieldCheck size={16} className="text-[#10B981]" />
-          </div>
-          <p className="mt-2 text-3xl font-semibold tracking-tight">{complianceScore}%</p>
-          <p className="mt-1 text-xs text-ink/65">Calculated from current risk ratio</p>
-        </article>
-
-        <article className="rounded-2xl border border-ink/10 bg-white/85 p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Risk Alerts</p>
-            <AlertTriangle size={16} className="text-[#F59E0B]" />
-          </div>
-          <p className="mt-2 text-3xl font-semibold tracking-tight">{compliance.summary.riskyCount}</p>
-          <p className="mt-1 text-xs text-ink/65">{riskRatio}% of checked transactions flagged</p>
-        </article>
-
-        <article className="rounded-2xl border border-ink/10 bg-white/85 p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Top Spend Category</p>
-            <PieChart size={16} className="text-[#1E3A8A]" />
-          </div>
-          <p className="mt-2 text-3xl font-semibold tracking-tight">{topCategory}</p>
-          <p className="mt-1 text-xs text-ink/65">Highest category concentration in current cycle</p>
-          <div className="mt-3 space-y-2">
-            {topCategoryBreakdown.map((entry) => (
-              <div key={entry.label}>
-                <div className="flex items-center justify-between text-xs text-ink/75">
-                  <span>{entry.label}</span>
-                  <span>{entry.percent}% • {formatMoney(entry.amount)}</span>
-                </div>
-                <div className="mt-1 h-1.5 rounded-full bg-canvas">
-                  <div className="h-1.5 rounded-full bg-[#1E3A8A]" style={{ width: `${Math.min(100, entry.percent)}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="rounded-2xl border border-ink/10 bg-white/85 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#1E3A8A]">Analytics</p>
-            <h3 className="text-lg font-semibold">Expense trends, category mix, and monthly comparison</h3>
-          </div>
-          <div className="rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Secure data sync active</div>
+    <div className="space-y-6">
+      <section className="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-emerald-600/15 bg-emerald-500/5 p-6">
+        <div>
+          <p className="text-[10px] font-semibold tracking-[.18em] text-emerald-700">
+            THE BIG PICTURE
+          </p>
+          <h2 className="mt-3 text-3xl font-medium tracking-tight">
+            A little more clarity.
+          </h2>
+          <p className="mt-3 text-xs leading-6 text-ink/60">
+            Your uploaded statement, organized for your next decision.
+          </p>
         </div>
+        <Link
+          href="/dashboard/upload"
+          className="flex items-center gap-2 rounded-xl bg-emerald-900 px-4 py-3 text-xs text-white"
+        >
+          <FileUp size={16} /> Upload statement
+        </Link>
       </section>
-
-      {workspace.mode === "business" ? (
-        <section className="rounded-2xl border border-ink/10 bg-white/82 p-5">
-          <h2 className="text-lg font-semibold">Auto Compliance Checker</h2>
-          <p className="mt-1 text-sm text-ink/65">Flags missing invoices, GST mismatch, suspicious entries, and top 10 risky transactions.</p>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            <article className="rounded-xl border border-ink/10 bg-canvas/60 p-3">
-              <p className="text-xs text-ink/55">Checked</p>
-              <p className="mt-1 text-2xl font-semibold">{compliance.summary.totalChecked}</p>
-            </article>
-            <article className="rounded-xl border border-ink/10 bg-canvas/60 p-3">
-              <p className="text-xs text-ink/55">Risky</p>
-              <p className="mt-1 text-2xl font-semibold">{compliance.summary.riskyCount}</p>
-            </article>
-            <article className="rounded-xl border border-ink/10 bg-canvas/60 p-3">
-              <p className="text-xs text-ink/55">Missing Invoices</p>
-              <p className="mt-1 text-2xl font-semibold">{compliance.summary.missingInvoices}</p>
-            </article>
-            <article className="rounded-xl border border-ink/10 bg-canvas/60 p-3">
-              <p className="text-xs text-ink/55">GST Mismatch</p>
-              <p className="mt-1 text-2xl font-semibold">{compliance.summary.gstMismatches}</p>
-            </article>
-          </div>
-
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-ink/10 text-ink/55">
-                  <th className="pb-2 font-medium">Severity</th>
-                  <th className="pb-2 font-medium">Type</th>
-                  <th className="pb-2 font-medium">Merchant</th>
-                  <th className="pb-2 font-medium">Reason</th>
-                  <th className="pb-2 text-right font-medium">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {compliance.topRisks.map((risk) => (
-                  <tr key={risk.id} className="border-b border-ink/8 last:border-b-0">
-                    <td className="py-2.5">{risk.severity}</td>
-                    <td className="py-2.5">{risk.kind}</td>
-                    <td className="py-2.5">{risk.merchant}</td>
-                    <td className="py-2.5 text-ink/70">{risk.reason}</td>
-                    <td className="py-2.5 text-right font-semibold">{formatMoney(risk.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      <section className="grid gap-3 sm:grid-cols-2">
+        {[
+          [
+            "Total expenses",
+            money(expenses),
+            "Debits in your active statement",
+          ],
+          ["Total credits", money(income), "Credits in your active statement"],
+          [
+            "Needs your context",
+            String(pending),
+            "Confirm a category and add a remark",
+          ],
+          [
+            "Transactions",
+            String(transactions.length),
+            "Your statement records, without currency conversion",
+          ],
+        ].map(([label, value, hint]) => (
+          <article key={label} className="rounded-2xl border border-ink/10 p-5">
+            <p className="text-xs text-ink/55">{label}</p>
+            <p className="mt-3 text-2xl font-medium tracking-tight">{value}</p>
+            <p className="mt-2 text-[10px] text-ink/45">{hint}</p>
+          </article>
+        ))}
+      </section>
+      {!transactions.length ? (
+        <section className="rounded-2xl border border-dashed border-ink/20 p-8 text-center">
+          <FileUp className="mx-auto text-emerald-700" size={30} />
+          <h3 className="mt-4 text-lg font-medium">
+            Your workspace is ready for its first statement.
+          </h3>
+          <p className="mx-auto mt-3 max-w-md text-xs leading-6 text-ink/55">
+            Import an INR CSV or Excel statement. Your records are private to
+            this account. No sample transactions are mixed into your reports.
+          </p>
+          <Link
+            href="/dashboard/upload"
+            className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-emerald-700"
+          >
+            Add a statement <ArrowRight size={16} />
+          </Link>
         </section>
       ) : (
-        <section className="grid gap-4 lg:grid-cols-2">
-          <article className="rounded-2xl border border-ink/10 bg-white/82 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Financial Health Score</p>
-            <p className="mt-2 text-4xl font-semibold tracking-tight">{personalHealthScore}</p>
-            <p className="mt-2 text-sm text-ink/65">Based on spending stability, risk flags, and forecast pressure.</p>
-          </article>
-          <article className="rounded-2xl border border-ink/10 bg-white/82 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Tax Saving Suggestions</p>
-            <ul className="mt-3 space-y-2 text-sm text-ink/75">
-              <li className="rounded-xl border border-ink/10 bg-canvas/60 px-3 py-2">Investing in ELSS could improve your projected tax outcome by up to {personalTaxSaving}.</li>
-              <li className="rounded-xl border border-ink/10 bg-canvas/60 px-3 py-2">Use 80C headroom by routing long-term savings before month-end.</li>
-              <li className="rounded-xl border border-ink/10 bg-canvas/60 px-3 py-2">Review recurring subscriptions above your historical personal baseline.</li>
-            </ul>
-          </article>
-        </section>
-      )}
-
-      <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-        <SpendTrendCard data={data.charts.line} />
-
-        <article className="rounded-2xl border border-ink/10 bg-white/80 p-5">
-          <h2 className="text-lg font-semibold">Automation Pipeline</h2>
-          <ul className="mt-4 space-y-3">
-            {data.timeline.map((step, index) => (
-              <li key={step} className="flex items-center gap-3 text-sm text-ink/80">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-ink/20 bg-canvas text-xs font-semibold">
-                  {index + 1}
-                </span>
-                {step}
-              </li>
-            ))}
-          </ul>
-        </article>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <DonutChartCard data={data.charts.donut} />
-        <PieChartCard data={data.charts.donut} />
-        <StackedBarCard data={data.charts.stacked} />
-      </section>
-
-      <section className="rounded-2xl border border-ink/10 bg-white/80 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55">Data Source</p>
-        <p className="mt-2 text-sm text-ink/70">
-          {data.uploadSummary.source} • {data.uploadSummary.rowCount} stored rows
-        </p>
-      </section>
-
-      <section className="rounded-2xl border border-ink/10 bg-white/80 p-5">
-        <h2 className="text-lg font-semibold">Recent Flags</h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-ink/10 text-ink/55">
-                <th className="pb-3 font-medium">Severity</th>
-                <th className="pb-3 font-medium">Merchant</th>
-                <th className="pb-3 font-medium">Issue</th>
-                <th className="pb-3 text-right font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.recentFlags.map((flag) => (
-                <tr key={flag.id} className="border-b border-ink/8 last:border-b-0">
-                  <td className="py-3">
-                    <span className={`rounded-full px-2 py-1 text-xs font-semibold ${flag.severity === "high" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
-                      {flag.severity}
-                    </span>
-                  </td>
-                  <td className="py-3">{flag.merchant}</td>
-                  <td className="py-3 text-ink/70">{flag.reason}</td>
-                  <td className="py-3 text-right font-medium">{formatMoney(flag.amount)}</td>
-                </tr>
+        <>
+          <Link
+            href="/dashboard/transactions"
+            className="flex items-center justify-between gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5 text-sm"
+          >
+            <span>
+              {pending
+                ? `${pending} payments need your review.`
+                : "Your transaction review queue is clear."}
+              <span className="mt-1 block text-xs text-ink/50">
+                Add context, verify categories, and keep a record of your
+                decisions.
+              </span>
+            </span>
+            <ArrowRight className="shrink-0" size={18} />
+          </Link>
+          <div className="grid gap-4">
+            <LineChartCard data={overview.charts.line} />
+            <DonutChartCard data={overview.charts.donut} />
+            <StackedBarCard data={overview.charts.stacked} />
+          </div>
+          <section className="rounded-2xl border border-ink/10 p-5">
+            <h3 className="font-semibold">Recent transactions</h3>
+            <div className="mt-4 divide-y divide-ink/10">
+              {transactions.slice(0, 6).map((transaction) => (
+                <div
+                  key={transaction.id}
+                  className="flex justify-between gap-4 py-3 text-xs"
+                >
+                  <div>
+                    <p className="break-words font-medium">
+                      {transaction.merchant}
+                    </p>
+                    <p className="mt-1 text-ink/45">
+                      {transaction.date} / {transaction.category} /{" "}
+                      {transaction.direction || "debit"}
+                    </p>
+                  </div>
+                  <span className="shrink-0">{money(transaction.amount)}</span>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+            </div>
+          </section>
+        </>
+      )}
+      <p className="flex items-start gap-2 rounded-xl border border-ink/10 p-4 text-[10px] leading-6 text-ink/50">
+        <ShieldCheck size={16} className="mt-1 shrink-0" />
+        Review prompts are statement-based signals. GST validity, invoices,
+        statutory compliance, and tax entitlements cannot be established from a
+        bank statement alone. Retain your original records and consult your
+        adviser.
+      </p>
     </div>
   );
 }

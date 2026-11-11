@@ -2,8 +2,17 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import { DonutChartCard, LineChartCard, StackedBarCard } from "@/components/app/charts";
-import type { ChatMessage, ChatResponse, WorkspaceContextPayload } from "@/lib/types";
+import {
+  DonutChartCard,
+  LineChartCard,
+  StackedBarCard,
+} from "@/components/app/charts";
+import type {
+  ChatMessage,
+  ChatResponse,
+  WorkspaceContextPayload,
+} from "@/lib/types";
+import { apiFetch } from "@/lib/api-client";
 
 type ThreadMessage = {
   id: string;
@@ -12,22 +21,26 @@ type ThreadMessage = {
 };
 
 export default function DashboardChatPage() {
-  const [workspaceMode, setWorkspaceMode] = useState<"business" | "personal">("business");
+  const [workspaceMode, setWorkspaceMode] = useState<"business" | "personal">(
+    "business",
+  );
   const [prompt, setPrompt] = useState("");
   const [messages, setMessages] = useState<ThreadMessage[]>([
     {
       id: "seed-1",
       role: "assistant",
-      content: "Ask me about GST errors, audit risks, compliance findings, or tax-saving opportunities.",
+      content:
+        "Ask me about spending, category breakdowns and transactions needing a remark.",
     },
   ]);
   const [chart, setChart] = useState<ChatResponse["visualization"]>(undefined);
-  const [reasoning, setReasoning] = useState<ChatResponse["reasoning"]>(undefined);
+  const [reasoning, setReasoning] =
+    useState<ChatResponse["reasoning"]>(undefined);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const loadWorkspace = async () => {
-      const response = await fetch("/api/workspace", { cache: "no-store" });
+      const response = await apiFetch("/api/workspace", { cache: "no-store" });
       if (!response.ok) return;
       const payload = (await response.json()) as WorkspaceContextPayload;
       setWorkspaceMode(payload.mode);
@@ -37,8 +50,8 @@ export default function DashboardChatPage() {
           role: "assistant",
           content:
             payload.mode === "personal"
-              ? "Ask me where you are overspending, what to optimize, and how to save more tax."
-              : "Ask me to check GST errors, summarize tax risks, detect duplicate expenses, or prepare pre-audit findings.",
+              ? "Ask about your spending patterns, statement credits and unclear payments."
+              : "Ask about potential duplicate payments, spending patterns and transactions needing review.",
         },
       ]);
     };
@@ -50,13 +63,13 @@ export default function DashboardChatPage() {
     workspaceMode === "personal"
       ? [
           "Where am I overspending this month?",
-          "How can I save more tax?",
+          "Which transactions need a remark?",
           "Show my next month spending forecast",
         ]
       : [
-          "Check GST errors in this data",
-          "Summarize top audit risks",
-          "Show top 10 risky transactions",
+          "Which transactions need a remark?",
+          "Summarize potential duplicate payments",
+          "Show top merchants by spend",
         ];
 
   const send = async (event: FormEvent) => {
@@ -75,17 +88,23 @@ export default function DashboardChatPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: trimmed,
-          messages: messages.map((item) => ({ role: item.role, content: item.content })) as ChatMessage[],
+          messages: messages.map((item) => ({
+            role: item.role,
+            content: item.content,
+          })) as ChatMessage[],
         }),
       });
 
-      const payload = (await response.json()) as ChatResponse & { error?: string };
-      if (!response.ok) throw new Error(payload.error ?? "Chat request failed.");
+      const payload = (await response.json()) as ChatResponse & {
+        error?: string;
+      };
+      if (!response.ok)
+        throw new Error(payload.error ?? "Chat request failed.");
 
       setMessages((prev) => [
         ...prev,
@@ -99,7 +118,10 @@ export default function DashboardChatPage() {
         {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: requestError instanceof Error ? requestError.message : "Unexpected chat error.",
+          content:
+            requestError instanceof Error
+              ? requestError.message
+              : "Unexpected chat error.",
         },
       ]);
     } finally {
@@ -110,7 +132,11 @@ export default function DashboardChatPage() {
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_0.85fr]">
       <section className="rounded-2xl border border-ink/10 bg-white/82 p-4 md:p-5">
-        <h2 className="text-lg font-semibold">{workspaceMode === "personal" ? "Personal Finance Copilot" : "CA Copilot"}</h2>
+        <h2 className="text-lg font-semibold">
+          {workspaceMode === "personal"
+            ? "Personal Finance Copilot"
+            : "CA Copilot"}
+        </h2>
         <p className="mt-1 text-sm text-ink/65">
           {workspaceMode === "personal"
             ? "Ask for savings advice, spending diagnostics, and personal forecast guidance."
@@ -166,7 +192,10 @@ export default function DashboardChatPage() {
       <aside className="rounded-2xl border border-ink/10 bg-white/82 p-4 md:p-5">
         <h3 className="text-base font-semibold">Visualization</h3>
         {!chart ? (
-          <p className="mt-3 text-sm text-ink/65">Ask a question like &quot;department breakdown&quot; or &quot;forecast&quot; to render a live panel.</p>
+          <p className="mt-3 text-sm text-ink/65">
+            Ask a question like &quot;department breakdown&quot; or
+            &quot;forecast&quot; to render a live panel.
+          </p>
         ) : (
           <div className="mt-4">
             {chart.kind === "line" && <LineChartCard data={chart} />}
@@ -177,9 +206,17 @@ export default function DashboardChatPage() {
 
         {reasoning && (
           <div className="mt-4 space-y-2 rounded-xl border border-ink/12 bg-canvas/70 p-3 text-sm">
-            <p><span className="font-semibold">Insight:</span> {reasoning.insight}</p>
-            <p><span className="font-semibold">Recommendation:</span> {reasoning.recommendation}</p>
-            <p><span className="font-semibold">Action:</span> {reasoning.action}</p>
+            <p>
+              <span className="font-semibold">Insight:</span>{" "}
+              {reasoning.insight}
+            </p>
+            <p>
+              <span className="font-semibold">Recommendation:</span>{" "}
+              {reasoning.recommendation}
+            </p>
+            <p>
+              <span className="font-semibold">Action:</span> {reasoning.action}
+            </p>
           </div>
         )}
       </aside>

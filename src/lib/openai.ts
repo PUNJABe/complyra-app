@@ -1,3 +1,4 @@
+import { currentSession, rateLimit } from "@/lib/auth";
 type OpenAIChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -28,11 +29,26 @@ export function hasOpenAIKey() {
   return Boolean(OPENAI_API_KEY);
 }
 
-async function requestChatCompletion(messages: OpenAIChatMessage[], options: { model?: string; temperature?: number; maxTokens?: number; jsonMode?: boolean }) {
+async function requestChatCompletion(
+  messages: OpenAIChatMessage[],
+  options: {
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    jsonMode?: boolean;
+  },
+) {
   if (!OPENAI_API_KEY) return null;
+  const session = await currentSession();
+  if (
+    !session?.aiEnabled ||
+    !(await rateLimit(`ai:${session.userId}`, 30, 3600000))
+  )
+    return null;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
+    signal: AbortSignal.timeout(20000),
     headers: {
       Authorization: `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json",
@@ -47,8 +63,13 @@ async function requestChatCompletion(messages: OpenAIChatMessage[], options: { m
   });
 
   if (!response.ok) {
-    const errorBody = (await response.json().catch(() => null)) as { error?: { message?: string } } | null;
-    throw new Error(errorBody?.error?.message ?? `OpenAI request failed with status ${response.status}.`);
+    const errorBody = (await response.json().catch(() => null)) as {
+      error?: { message?: string };
+    } | null;
+    throw new Error(
+      errorBody?.error?.message ??
+        `OpenAI request failed with status ${response.status}.`,
+    );
   }
 
   const payload = (await response.json()) as {
@@ -74,7 +95,7 @@ export async function generateOpenAIText(options: OpenAITextOptions) {
         model: options.model,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
-      }
+      },
     );
 
     return content ?? options.fallback;
@@ -95,7 +116,7 @@ export async function generateOpenAIJSON<T>(options: OpenAIJsonOptions<T>) {
         temperature: options.temperature,
         maxTokens: options.maxTokens,
         jsonMode: true,
-      }
+      },
     );
 
     return content ? (JSON.parse(content) as T) : options.fallback;

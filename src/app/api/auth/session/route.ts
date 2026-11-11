@@ -1,65 +1,29 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-
-import { AUTH_COOKIE, decodeSession, encodeSession, SESSION_IDLE_TIMEOUT_MS } from "@/lib/auth";
-
+import {
+  AUTH_COOKIE,
+  changeSecurity,
+  currentSession,
+  digest,
+  SESSION_IDLE_TIMEOUT_MS,
+} from "@/lib/auth";
 export async function GET() {
-  const cookieStore = await cookies();
-  const raw = cookieStore.get(AUTH_COOKIE)?.value;
-  const payload = decodeSession(raw ?? null);
-
-  if (!payload) {
-    return NextResponse.json({
-      authenticated: false,
-      session: null,
-      expired: false,
+  const session = await currentSession();
+  if (session) {
+    const token = (await cookies()).get(AUTH_COOKIE)!.value;
+    await changeSecurity((data) => {
+      if (data.sessions[digest(token)])
+        data.sessions[digest(token)].lastSeenAt = Date.now();
     });
   }
-
-  const now = Date.now();
-  const idle = now - payload.lastSeenAt;
-
-  if (idle > SESSION_IDLE_TIMEOUT_MS) {
-    const expiredResponse = NextResponse.json({
-      authenticated: false,
-      session: null,
-      expired: true,
-    });
-    expiredResponse.cookies.set(AUTH_COOKIE, "", {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 0,
-    });
-    return expiredResponse;
-  }
-
-  const refreshed = {
-    ...payload,
-    lastSeenAt: now,
-  };
-
-  const response = NextResponse.json({
-    authenticated: true,
-    session: {
-      provider: payload.provider,
-      email: payload.email,
-      role: payload.role,
-      createdAt: payload.createdAt,
-      lastSeenAt: payload.lastSeenAt,
-      expiresInMs: Math.max(0, SESSION_IDLE_TIMEOUT_MS - idle),
+  return NextResponse.json(
+    {
+      authenticated: Boolean(session),
+      session: session
+        ? { ...session, expiresInMs: SESSION_IDLE_TIMEOUT_MS }
+        : null,
+      expired: !session,
     },
-    expired: false,
-  });
-
-  response.cookies.set(AUTH_COOKIE, encodeSession(refreshed), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-
-  return response;
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }

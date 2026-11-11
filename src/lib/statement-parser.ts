@@ -1,10 +1,6 @@
 import * as XLSX from "xlsx";
-
-/**
- * Statement Parser
- * Parses bank statements, credit card statements, and expense records
- * Extracts transactions with merchant, category, amount, and date
- */
+import { classifyTransaction } from "@/lib/categorization";
+import { CATEGORIES } from "@/lib/transaction-categories";
 
 export interface ParsedTransaction {
   merchant: string;
@@ -12,175 +8,96 @@ export interface ParsedTransaction {
   date: string;
   category?: string;
   description?: string;
+  direction?: "debit" | "credit";
 }
-
 export interface StatementAnalysis {
   transactions: ParsedTransaction[];
   categoryBreakdown: Record<string, number>;
   totalTransactions: number;
-  dateRange: {
-    earliest: string;
-    latest: string;
-  };
+  dateRange: { earliest: string; latest: string };
   averageTransactionValue: number;
 }
-
-// Merchant → Category mapping
-const MERCHANT_CATEGORY_MAP: Record<string, string> = {
-  // Food
-  swiggy: "Food",
-  zomato: "Food",
-  dunkindonuts: "Food",
-  starbucks: "Food",
-  mcdonalds: "Food",
-  subway: "Food",
-  pizzahut: "Food",
-  "kfc": "Food",
-  restaurant: "Food",
-  cafe: "Food",
-  
-  // Travel
-  uber: "Travel",
-  ola: "Travel",
-  airbnb: "Travel",
-  booking: "Travel",
-  makemytrip: "Travel",
-  indigo: "Travel",
-  spicejet: "Travel",
-  vistara: "Travel",
-  airline: "Travel",
-  taxi: "Travel",
-  
-  // Subscriptions
-  netflix: "Subscriptions",
-  prime: "Subscriptions",
-  spotify: "Subscriptions",
-  adobe: "Subscriptions",
-  microsoft: "Subscriptions",
-  slack: "Subscriptions",
-  figma: "Subscriptions",
-  subscription: "Subscriptions",
-  
-  // Utilities
-  electricity: "Utilities",
-  water: "Utilities",
-  broadband: "Utilities",
-  internet: "Utilities",
-  mobile: "Utilities",
-  phone: "Utilities",
-  
-  // Shopping
-  amazon: "Shopping",
-  flipkart: "Shopping",
-  myntra: "Shopping",
-  ajio: "Shopping",
-  uniqlo: "Shopping",
-  "h&m": "Shopping",
-  "zara": "Shopping",
-  mall: "Shopping",
-  shopping: "Shopping",
-  
-  // Fuel
-  petrol: "Fuel",
-  diesel: "Fuel",
-  shell: "Fuel",
-  bp: "Fuel",
-  "indian oil": "Fuel",
-  gas: "Fuel",
-  
-  // Rent/Housing (detected from description patterns)
-  rent: "Rent",
-  landlord: "Rent",
-  
-  // Savings/Transfers (to skip or categorize separately)
-  transfer: "Transfer",
-  deposit: "Transfer",
-};
-
-/**
- * Categorize a transaction based on merchant name
- */
-function categorizeTransaction(merchant: string): string {
-  const normalized = merchant.toLowerCase().trim();
-  
-  // Exact match first
-  if (MERCHANT_CATEGORY_MAP[normalized]) {
-    return MERCHANT_CATEGORY_MAP[normalized];
+function amount(value: unknown): number {
+  if (value == null || value === "" || value === "-") return 0;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("Invalid transaction amount.");
+    return Math.abs(value);
   }
-  
-  // Partial match
-  for (const [key, category] of Object.entries(MERCHANT_CATEGORY_MAP)) {
-    if (normalized.includes(key) || key.includes(normalized)) {
-      return category;
-    }
-  }
-  
-  // Default to "Other"
-  return "Other";
+  if (typeof value !== "string") throw new Error("Invalid transaction amount.");
+  const cleaned = value
+    .replace(/(?:INR|Rs\.?|₹|,|\s)/gi, "")
+    .replace(/(?:CR|DR)$/i, "");
+  if (!cleaned || cleaned === "-") return 0;
+  if (!/^[+-]?(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(cleaned))
+    throw new Error(
+      "Invalid amount. Use INR numbers with at most two decimal places.",
+    );
+  return Math.abs(Number(cleaned));
 }
-
-function parseAmount(value: unknown): number {
-  if (typeof value === "number") return Math.abs(value);
-  if (typeof value === "string") {
-    const parsed = Number.parseFloat(value.replace(/[₹$,\s]/g, ""));
-    return Number.isFinite(parsed) ? Math.abs(parsed) : 0;
-  }
-  return 0;
-}
-
-function parseSheetDate(value: unknown): string {
-  if (value instanceof Date && !Number.isNaN(value.valueOf())) {
+function dateValue(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.valueOf()))
     return value.toISOString().slice(0, 10);
-  }
-
   if (typeof value === "number") {
     const parsed = XLSX.SSF.parse_date_code(value);
-    if (parsed) {
-      return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d)).toISOString().slice(0, 10);
-    }
+    if (parsed)
+      return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d))
+        .toISOString()
+        .slice(0, 10);
   }
-
   if (typeof value === "string") {
-    const date = new Date(value);
-    if (!Number.isNaN(date.valueOf())) {
+    const text = value.trim();
+    const indian = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(text);
+    if (indian) {
+      const [, day, month, year] = indian;
+      const date = new Date(
+        Date.UTC(Number(year), Number(month) - 1, Number(day)),
+      );
+      if (
+        date.getUTCDate() !== Number(day) ||
+        date.getUTCMonth() !== Number(month) - 1
+      )
+        throw new Error("Invalid transaction date.");
       return date.toISOString().slice(0, 10);
     }
-  }
-
-  return new Date().toISOString().slice(0, 10);
-}
-
-function normalizeHeaderKey(key: string): string {
-  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function getFirstStringValue(row: Record<string, unknown>, keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = row[key];
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      if (trimmed) return trimmed;
+    const date = new Date(text);
+    if (!Number.isNaN(date.valueOf())) {
+      const iso = date.toISOString().slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(text) && text !== iso)
+        throw new Error("Invalid transaction date.");
+      return iso;
     }
   }
+  throw new Error(
+    "Every transaction must have a valid date. Use YYYY-MM-DD or DD/MM/YYYY.",
+  );
+}
+function first(row: Record<string, unknown>, keys: string[]) {
+  for (const key of keys)
+    if (row[key] !== undefined && row[key] !== null && row[key] !== "")
+      return row[key];
   return undefined;
 }
-
-function getFirstValue(row: Record<string, unknown>, keys: string[]): unknown {
-  for (const key of keys) {
-    const value = row[key];
-    if (value !== undefined && value !== null && value !== "") {
-      return value;
-    }
-  }
-  return undefined;
+function text(row: Record<string, unknown>, keys: string[]) {
+  const value = first(row, keys);
+  return typeof value === "string" ? value.trim() : undefined;
 }
-
-function rowsToTransactions(rows: Record<string, unknown>[]): ParsedTransaction[] {
-  const transactions: ParsedTransaction[] = [];
-
-  for (const row of rows) {
-    const merchant =
-      getFirstStringValue(row, [
+function convertRows(sheet: XLSX.WorkSheet): ParsedTransaction[] {
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+    defval: "",
+    raw: false,
+  });
+  if (rows.length > 2000)
+    throw new Error("Maximum 2,000 transactions per statement.");
+  const result: ParsedTransaction[] = [];
+  for (const original of rows) {
+    const row = Object.fromEntries(
+      Object.entries(original).map(([key, value]) => [
+        key.toLowerCase().replace(/[^a-z0-9]/g, ""),
+        value,
+      ]),
+    );
+    const merchant = (
+      text(row, [
         "merchant",
         "vendor",
         "description",
@@ -190,167 +107,147 @@ function rowsToTransactions(rows: Record<string, unknown>[]): ParsedTransaction[
         "remarks",
         "details",
         "beneficiary",
-      ]) ?? "Unknown Merchant";
-
-    const debitAmount = parseAmount(
-      getFirstValue(row, ["debit", "withdrawalamt", "withdrawal", "dr"])
+      ]) || "Unknown Merchant"
+    ).slice(0, 500);
+    const debit = amount(
+      first(row, ["debit", "debitamount", "withdrawalamt", "withdrawal", "dr"]),
     );
-    const creditAmount = parseAmount(
-      getFirstValue(row, ["credit", "depositamt", "deposit", "cr"])
+    const credit = amount(
+      first(row, ["credit", "creditamount", "depositamt", "deposit", "cr"]),
     );
-
-    const amount = parseAmount(
-      getFirstValue(row, ["amount", "value", "total", "signedamount", "txnamount"])
-    );
-
-    const resolvedAmount = amount || debitAmount || creditAmount;
-
-    if (!resolvedAmount) continue;
-
-    transactions.push({
-      date: parseSheetDate(
-        getFirstValue(row, [
+    const rawAmount = first(row, [
+      "amount",
+      "value",
+      "total",
+      "signedamount",
+      "txnamount",
+    ]);
+    const resolved = amount(rawAmount) || debit || credit;
+    if (!resolved) continue;
+    if (resolved > 1e12) throw new Error("Invalid transaction amount.");
+    if (debit && credit)
+      throw new Error(
+        "A transaction cannot have both debit and credit amounts.",
+      );
+    const currency = text(row, ["currency", "currencycode"]);
+    if (currency && currency.toUpperCase() !== "INR")
+      throw new Error(
+        "Only INR statements are supported. Currency conversion is not applied.",
+      );
+    const supplied = text(row, ["category"]);
+    const inferred = classifyTransaction({
+      id: "",
+      merchant,
+      amount: resolved,
+      date: "",
+      employee: "",
+      department: "",
+      category: "Other",
+    });
+    const category =
+      CATEGORIES.find(
+        (item) => item.toLowerCase() === supplied?.toLowerCase(),
+      ) || inferred.category;
+    const isCredit =
+      Boolean(credit && !debit) ||
+      /^(cr|credit|income)$/i.test(
+        text(row, ["direction", "type", "drcr"]) || "",
+      ) ||
+      /CR\s*$/i.test(String(rawAmount ?? "")) ||
+      (row.signedamount !== undefined && Number(row.signedamount) > 0);
+    result.push({
+      merchant,
+      amount: resolved,
+      date: dateValue(
+        first(row, [
           "date",
           "transactiondate",
           "txndate",
           "postingdate",
           "valuedate",
           "transdate",
-        ])
+        ]),
       ),
-      merchant,
-      amount: resolvedAmount,
-      category: getFirstStringValue(row, ["category"]) ?? categorizeTransaction(merchant),
-      description: getFirstStringValue(row, ["description", "narration", "particulars", "remarks"]),
+      category,
+      direction: isCredit ? "credit" : "debit",
+      description: text(row, [
+        "description",
+        "narration",
+        "particulars",
+        "remarks",
+      ]),
     });
   }
-
-  return transactions;
+  return result;
 }
-
-/**
- * Parse CSV data (expects columns: date, merchant, amount)
- */
 export function parseCSV(csvText: string): ParsedTransaction[] {
-  const lines = csvText.trim().split("\n");
-  const transactions: ParsedTransaction[] = [];
-  
-  // Skip header if it looks like one
-  const startIndex = lines[0].toLowerCase().includes("date") ? 1 : 0;
-  
-  for (let i = startIndex; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    
-    const parts = line.split(",").map((p) => p.trim());
-    if (parts.length < 3) continue;
-    
-    const [date, merchant, amountStr] = parts;
-    const amount = parseFloat(amountStr.replace(/[₹$,]/g, ""));
-    
-    if (!isNaN(amount) && merchant && date) {
-      transactions.push({
-        date,
-        merchant,
-        amount: Math.abs(amount),
-        category: categorizeTransaction(merchant),
-      });
-    }
-  }
-  
-  return transactions;
+  const workbook = XLSX.read(csvText, {
+    type: "string",
+    sheetRows: 2002,
+    raw: true,
+  });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  return sheet ? convertRows(sheet) : [];
 }
-
-/**
- * Analyze parsed transactions for insights
- */
 export function analyzeTransactions(
-  transactions: ParsedTransaction[]
+  transactions: ParsedTransaction[],
 ): StatementAnalysis {
-  const categoryBreakdown: Record<string, number> = {};
-  let totalAmount = 0;
-  
-  for (const tx of transactions) {
-    const cat = tx.category || "Other";
-    categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + tx.amount;
-    totalAmount += tx.amount;
-  }
-  
-  // Sort transactions by date
-  const sorted = [...transactions].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
-  
+  const expenses = transactions.filter((item) => item.direction !== "credit");
+  const categoryBreakdown: Record<string, number> = Object.create(null);
+  for (const transaction of expenses)
+    categoryBreakdown[transaction.category || "Other"] =
+      (categoryBreakdown[transaction.category || "Other"] || 0) +
+      transaction.amount;
+  const sorted = [...transactions].sort((a, b) => a.date.localeCompare(b.date));
   return {
     transactions,
     categoryBreakdown,
     totalTransactions: transactions.length,
     dateRange: {
       earliest: sorted[0]?.date || "",
-      latest: sorted[sorted.length - 1]?.date || "",
+      latest: sorted.at(-1)?.date || "",
     },
-    averageTransactionValue: totalAmount / transactions.length,
+    averageTransactionValue:
+      expenses.reduce((sum, item) => sum + item.amount, 0) /
+      Math.max(expenses.length, 1),
   };
 }
-
-/**
- * Parse file based on type
- */
+function validateWorkbookSize(buffer: Buffer) {
+  if (buffer.length < 4) throw new Error("Empty or invalid workbook.");
+  if (buffer.readUInt16LE(0) !== 0x4b50) return;
+  let total = 0,
+    entries = 0;
+  for (let offset = 0; offset + 46 <= buffer.length; offset++) {
+    if (buffer.readUInt32LE(offset) !== 0x02014b50) continue;
+    const uncompressed = buffer.readUInt32LE(offset + 24);
+    total += uncompressed;
+    entries++;
+    if (
+      total > 32 * 1024 * 1024 ||
+      uncompressed > 20 * 1024 * 1024 ||
+      entries > 1000
+    )
+      throw new Error(
+        "Workbook expands beyond the supported size. Export a smaller CSV statement.",
+      );
+    offset +=
+      45 +
+      buffer.readUInt16LE(offset + 28) +
+      buffer.readUInt16LE(offset + 30) +
+      buffer.readUInt16LE(offset + 32);
+  }
+}
 export async function parseStatementFile(
-  file: File
+  file: File,
 ): Promise<ParsedTransaction[]> {
-  const name = file.name.toLowerCase();
-
-  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const workbook = XLSX.read(buffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-
-    if (!sheetName) return [];
-
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: "",
-      raw: false,
-    });
-
-    const normalizedRows = rows.map((row) => {
-      const normalized: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(row)) {
-        normalized[normalizeHeaderKey(key)] = value;
-      }
-      return normalized;
-    });
-
-    return rowsToTransactions(normalizedRows);
-  }
-
-  const text = await file.text();
-  try {
-    const workbook = XLSX.read(text, { type: "string" });
-    const sheetName = workbook.SheetNames[0];
-
-    if (sheetName) {
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-        defval: "",
-        raw: false,
-      });
-
-      const normalizedRows = rows.map((row) => {
-        const normalized: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(row)) {
-          normalized[normalizeHeaderKey(key)] = value;
-        }
-        return normalized;
-      });
-
-      const parsed = rowsToTransactions(normalizedRows);
-      if (parsed.length > 0) return parsed;
-    }
-  } catch {
-    // Fall back to legacy CSV parser below.
-  }
-
-  return parseCSV(text);
+  if (file.size > 5 * 1024 * 1024)
+    throw new Error("Maximum statement size is 5 MB.");
+  if (/\.csv$/i.test(file.name)) return parseCSV(await file.text());
+  if (!/\.(xlsx|xls)$/i.test(file.name))
+    throw new Error("Only CSV, XLSX and XLS statements are supported.");
+  const buffer = Buffer.from(await file.arrayBuffer());
+  validateWorkbookSize(buffer);
+  const workbook = XLSX.read(buffer, { type: "buffer", sheetRows: 2002 });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  return sheet ? convertRows(sheet) : [];
 }

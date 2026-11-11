@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /out/
+/.pages-export-*/
 
 # production
 /build
@@ -41,3 +42,13 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# Private application data, mail links, wallets and local test artifacts
+/.complyra/secure/
+/.complyra/test-*/
+/wallet/
+*.p12
+*.sso
+!.env.example
+
+/.next-test/

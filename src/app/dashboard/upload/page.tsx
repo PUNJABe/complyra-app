@@ -1,175 +1,115 @@
 "use client";
-
-import { useRef, useState } from "react";
-import { Lock, UploadCloud, FileText, FileSpreadsheet, ShieldCheck } from "lucide-react";
-import { Toast } from "@/components/app/toast";
-
+import Link from "next/link";
+import { FormEvent, useState } from "react";
+import { FileUp, CircleCheck } from "lucide-react";
+import { apiFetch } from "@/lib/api-client";
 export default function UploadDataPage() {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [file, setFile] = useState<File | null>(null);
-  const [toastMessage, setToastMessage] = useState("");
-
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    window.setTimeout(() => setToastMessage(""), 2200);
-  };
-
-  const simulateProgress = () => {
-    setProgress(0);
-    const timer = window.setInterval(() => {
-      setProgress((value) => {
-        if (value >= 100) {
-          window.clearInterval(timer);
-          showToast("File uploaded successfully");
-          return 100;
-        }
-        return value + 10;
-      });
-    }, 120);
-  };
-
-  const onFileSelected = (candidate: File | undefined) => {
-    if (!candidate) return;
-    const ext = candidate.name.toLowerCase();
-    if (!ext.endsWith(".xlsx") && !ext.endsWith(".pdf")) {
-      showToast("Unsupported file type. Please upload .xlsx or .pdf");
-      return;
-    }
-    setFile(candidate);
-    simulateProgress();
-
-    if (ext.endsWith(".xlsx")) {
-      const formData = new FormData();
-      formData.append("file", candidate);
-
-      void fetch("/api/onboarding/upload", {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [count, setCount] = useState<number | null>(null);
+  async function upload(event: FormEvent) {
+    event.preventDefault();
+    if (!file) return;
+    setBusy(true);
+    setError("");
+    setCount(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const response = await apiFetch("/api/onboarding/upload", {
         method: "POST",
-        body: formData,
-      })
-        .then(async (response) => {
-          if (!response.ok) {
-            const payload = (await response.json().catch(() => ({}))) as { error?: string };
-            throw new Error(payload.error ?? "Upload failed.");
-          }
-        })
-        .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : "Upload failed.";
-          showToast(message);
-        });
-      return;
-    }
-
-    void fetch("/api/audit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "upload_pdf_selected",
-        details: `PDF ${candidate.name} selected for secure staging upload.`,
-        resource: "upload",
-      }),
-    }).catch(() => {
-      // Intentionally ignore audit post failures to keep upload UX smooth.
-    });
-
-    const formData = new FormData();
-    formData.append("file", candidate);
-
-    void fetch("/api/onboarding/upload", {
-      method: "POST",
-      body: formData,
-    }).catch(() => {
-      showToast("Upload failed.");
+        body: form,
       });
-  };
-
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Upload failed.");
+      setCount(data.importedRows);
+      window.dispatchEvent(new Event("statement-updated"));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Upload failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
-    <div className="space-y-5">
-      <section className="rounded-2xl border border-ink/10 bg-canvas/60 p-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#1E3A8A]">Upload Center</p>
-        <h2 className="mt-2 text-2xl font-semibold">Upload Data</h2>
-        <p className="mt-1 text-sm text-ink/70">Drag and drop Excel or PDF files to start instant policy and compliance analysis.</p>
-      </section>
-
-      <section
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragging(false);
-          onFileSelected(event.dataTransfer.files?.[0]);
-        }}
-        className={`rounded-2xl border-2 border-dashed p-8 text-center transition ${
-          dragging ? "border-[#10B981] bg-emerald-50" : "border-ink/20 bg-white/85"
-        }`}
+    <div className="mx-auto max-w-2xl space-y-6 py-5">
+      <p className="text-xs tracking-widest text-emerald-700">
+        KEEP YOUR RECORDS CURRENT
+      </p>
+      <h2 className="text-3xl font-medium tracking-tight">
+        Start with your statement.
+      </h2>
+      <p className="text-sm leading-7 text-ink/60">
+        Upload an INR-denominated CSV or Excel statement. We will categorize
+        recognized payments and ask for your context on the ones that need a
+        closer look.
+      </p>
+      <form
+        onSubmit={upload}
+        className="space-y-5 rounded-2xl border border-dashed border-emerald-600/40 bg-emerald-500/5 p-7"
       >
-        <UploadCloud size={34} className="mx-auto text-[#1E3A8A]" />
-        <p className="mt-3 text-base font-semibold">Drop your file here</p>
-        <p className="mt-1 text-sm text-ink/65">or click below to browse files</p>
-
+        <FileUp size={35} className="text-emerald-700" />
+        <label className="block text-sm font-medium">
+          Choose a statement
+          <input
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            required
+            disabled={busy}
+            onChange={(event) => {
+              setFile(event.target.files?.[0] || null);
+              setCount(null);
+            }}
+            className="mt-3 block w-full rounded-lg border border-ink/15 bg-canvas p-3 text-xs"
+          />
+        </label>
+        <p className="text-xs leading-6 text-ink/60">
+          Maximum 5 MB and 2,000 transactions. Include date, merchant or
+          narration, and amount (or separate debit and credit) columns. Dates:
+          YYYY-MM-DD or DD/MM/YYYY. Amount-only statements are treated as
+          expenses unless a credit direction is supplied. PDF import is not
+          supported.
+        </p>
+        <p className="text-xs leading-6 text-amber-700">
+          Importing replaces your active statement. Export your records first if
+          you need to keep them. Source files are processed in memory; extracted
+          records are saved.
+        </p>
         <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="mt-4 rounded-full bg-[#1E3A8A] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#1E40AF]"
+          disabled={busy || !file}
+          className="rounded-xl bg-emerald-900 px-5 py-3 text-sm text-white disabled:opacity-50"
         >
-          Choose File
+          {busy ? "Importing and reviewing..." : "Import statement"}
         </button>
-
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".xlsx,.pdf"
-          className="hidden"
-          onChange={(event) => onFileSelected(event.target.files?.[0])}
-        />
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <article className="rounded-2xl border border-ink/10 bg-white/85 p-4">
-          <div className="flex items-center gap-2 text-[#1E3A8A]"><FileSpreadsheet size={16} /><span className="text-sm font-semibold">Excel (.xlsx)</span></div>
-          <p className="mt-2 text-xs text-ink/65">Upload structured expense sheets for fast ingestion and policy mapping.</p>
-        </article>
-        <article className="rounded-2xl border border-ink/10 bg-white/85 p-4">
-          <div className="flex items-center gap-2 text-[#1E3A8A]"><FileText size={16} /><span className="text-sm font-semibold">PDF</span></div>
-          <p className="mt-2 text-xs text-ink/65">Upload invoices, statements, and backup documents for validation.</p>
-        </article>
-        <article className="rounded-2xl border border-ink/10 bg-white/85 p-4">
-          <div className="flex items-center gap-2 text-[#10B981]"><ShieldCheck size={16} /><span className="text-sm font-semibold">Trust Signals</span></div>
-          <p className="mt-2 text-xs text-ink/65">Encrypted in transit. Auto-deleted after 30 days unless retained by policy.</p>
-        </article>
-      </section>
-
-      {file && (
-        <section className="rounded-2xl border border-ink/10 bg-white/85 p-5">
-          <p className="text-sm font-semibold">File Preview</p>
-          <div className="mt-3 rounded-xl border border-ink/10 bg-canvas/60 p-3 text-sm text-ink/75">
-            <p>Name: {file.name}</p>
-            <p>Size: {(file.size / 1024).toFixed(1)} KB</p>
-            <p>Type: {file.type || "Unknown"}</p>
-          </div>
-
-          <div className="mt-4">
-            <div className="mb-2 flex items-center justify-between text-xs text-ink/60">
-              <span>Upload progress</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="h-2 rounded-full bg-canvas">
-              <div className="h-2 rounded-full bg-[#10B981] transition-all" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-        </section>
+      </form>
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl bg-rose-500/10 p-4 text-sm text-rose-600"
+        >
+          {error}
+        </p>
       )}
-
-      <section className="rounded-2xl border border-ink/10 bg-white/85 p-4 text-sm text-ink/70">
-        <div className="flex items-center gap-2 font-semibold text-ink/80"><Lock size={16} /> Security</div>
-        <p className="mt-2">Your data is encrypted and processed in a secure session. No third-party sharing by default.</p>
-      </section>
-
-      <Toast message={toastMessage} type={toastMessage.includes("successfully") ? "success" : "warning"} visible={Boolean(toastMessage)} />
+      {count !== null && (
+        <div role="status" className="rounded-xl bg-emerald-500/10 p-5 text-sm">
+          <p className="flex items-center gap-2 font-medium">
+            <CircleCheck size={18} />
+            {count} transactions imported.
+          </p>
+          <Link
+            className="mt-3 inline-block underline"
+            href="/dashboard/transactions"
+          >
+            Review transactions and add remarks →
+          </Link>
+        </div>
+      )}
+      <a
+        className="inline-block text-xs underline"
+        href="/api/account?export=true"
+      >
+        Export current workspace
+      </a>
     </div>
   );
 }

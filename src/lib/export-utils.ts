@@ -2,6 +2,20 @@
 
 type ExportCell = string | number | boolean | null | undefined;
 type ExportRow = Record<string, ExportCell>;
+function csvCell(value: ExportCell) {
+  let text = String(value ?? "");
+  if (/^[\s]*[=+@-]/.test(text)) text = "'" + text;
+  return `"${text.replace(/"/g, '\"\"')}"`;
+}
+function escapeHtml(value: unknown) {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        character
+      ]!,
+  );
+}
 
 /**
  * Generates a CSV file from data and triggers download
@@ -9,7 +23,7 @@ type ExportRow = Record<string, ExportCell>;
  */
 export function exportToCSV(
   data: ExportRow[],
-  filename: string = "export.csv"
+  filename: string = "export.csv",
 ) {
   if (!data || data.length === 0) {
     alert("No data to export");
@@ -21,18 +35,9 @@ export function exportToCSV(
 
   // Create CSV content
   const csv = [
-    headers.join(","), // Header row
+    headers.map(csvCell).join(","), // Header row
     ...data.map((row) =>
-      headers
-        .map((header) => {
-          const value = row[header];
-          // Escape commas and quotes in values
-          if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value ?? "";
-        })
-        .join(",")
+      headers.map((header) => csvCell(row[header])).join(","),
     ),
   ].join("\n");
 
@@ -54,7 +59,7 @@ export function exportToCSV(
 export function generateReport(
   title: string,
   data: ExportRow[],
-  filename: string = "report.csv"
+  filename: string = "report.csv",
 ) {
   if (!data || data.length === 0) {
     alert("No data to export");
@@ -65,20 +70,12 @@ export function generateReport(
   const timestamp = new Date().toISOString().split("T")[0];
 
   const csv = [
-    title,
+    csvCell(title),
     `Report Generated: ${new Date().toLocaleString()}`,
     "",
-    headers.join(","),
+    headers.map(csvCell).join(","),
     ...data.map((row) =>
-      headers
-        .map((header) => {
-          const value = row[header];
-          if (typeof value === "string" && (value.includes(",") || value.includes('"'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value ?? "";
-        })
-        .join(",")
+      headers.map((header) => csvCell(row[header])).join(","),
     ),
   ].join("\n");
 
@@ -99,7 +96,7 @@ export function generateReport(
 export function exportToPDF(
   title: string,
   rows: Array<Record<string, string | number>>,
-  subtitle?: string
+  subtitle?: string,
 ) {
   if (!rows.length) {
     alert("No data to export");
@@ -107,20 +104,22 @@ export function exportToPDF(
   }
 
   const headers = Object.keys(rows[0]);
-  const tableHead = headers.map((header) => `<th>${header}</th>`).join("");
+  const tableHead = headers
+    .map((header) => `<th>${escapeHtml(header)}</th>`)
+    .join("");
   const tableRows = rows
     .map(
       (row) =>
         `<tr>${headers
-          .map((header) => `<td>${String(row[header] ?? "")}</td>`)
-          .join("")}</tr>`
+          .map((header) => `<td>${escapeHtml(row[header])}</td>`)
+          .join("")}</tr>`,
     )
     .join("");
 
   const html = `
     <html>
       <head>
-        <title>${title}</title>
+        <title>${escapeHtml(title)}</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
           h1 { margin: 0 0 6px 0; }
@@ -131,8 +130,8 @@ export function exportToPDF(
         </style>
       </head>
       <body>
-        <h1>${title}</h1>
-        <p>${subtitle ?? `Generated ${new Date().toLocaleString()}`}</p>
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(subtitle ?? `Generated ${new Date().toLocaleString()}`)}</p>
         <table>
           <thead><tr>${tableHead}</tr></thead>
           <tbody>${tableRows}</tbody>

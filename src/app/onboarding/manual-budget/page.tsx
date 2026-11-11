@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 
 import { useState } from "react";
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
@@ -22,12 +23,13 @@ const DEFAULT_CATEGORIES = [
 ];
 
 export default function ManualBudgetPage() {
+  const router = useRouter();
   const [budgets, setBudgets] = useState<BudgetLine[]>(
     DEFAULT_CATEGORIES.map((cat, i) => ({
       id: `${i}`,
       category: cat,
       amount: 0,
-    }))
+    })),
   );
   const [income, setIncome] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -37,13 +39,15 @@ export default function ManualBudgetPage() {
 
   const updateBudget = (id: string, amount: number) => {
     setBudgets((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, amount: Math.max(0, amount) } : b))
+      prev.map((b) =>
+        b.id === id ? { ...b, amount: Math.max(0, amount) } : b,
+      ),
     );
   };
 
   const updateCategory = (id: string, category: string) => {
     setBudgets((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, category } : b))
+      prev.map((b) => (b.id === id ? { ...b, category } : b)),
     );
   };
 
@@ -80,10 +84,10 @@ export default function ManualBudgetPage() {
         createdAt: new Date().toISOString(),
       };
       localStorage.setItem("active_policy", JSON.stringify(policy));
-      
+
       // Redirect to dashboard
       setTimeout(() => {
-        window.location.href = "/dashboard";
+        router.push("/dashboard");
       }, 500);
     } finally {
       setSaving(false);
@@ -94,11 +98,18 @@ export default function ManualBudgetPage() {
     <div className="mx-auto w-full max-w-2xl px-6 pb-12 pt-8 md:px-10">
       {/* Header */}
       <div className="mb-8">
-        <Link href="/onboarding" className="inline-flex items-center gap-1 text-sm text-ink/60 hover:text-ink mb-4 transition">
+        <Link
+          href="/onboarding"
+          className="inline-flex items-center gap-1 text-sm text-ink/60 hover:text-ink mb-4 transition"
+        >
           <ArrowLeft className="h-4 w-4" /> Back
         </Link>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/55">Manual Budget Setup</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Define your budgets</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink/55">
+          Manual Budget Setup
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+          Define your budgets
+        </h1>
         <p className="mt-2 text-sm leading-relaxed text-ink/70">
           Enter your monthly income and budget limits for each category.
         </p>
@@ -108,7 +119,9 @@ export default function ManualBudgetPage() {
         {/* Income Input */}
         <div className="rounded-2xl border border-ink/10 bg-white/85 p-6 shadow-[0_18px_50px_-38px_rgba(17,24,39,0.45)] backdrop-blur-md">
           <label className="block space-y-2">
-            <span className="text-sm font-semibold text-ink">Monthly Income</span>
+            <span className="text-sm font-semibold text-ink">
+              Monthly Income
+            </span>
             <div className="flex items-center gap-2">
               <span className="text-lg font-semibold text-ink/60">₹</span>
               <input
@@ -124,8 +137,10 @@ export default function ManualBudgetPage() {
 
         {/* Budget Editor */}
         <div className="rounded-2xl border border-ink/10 bg-white/85 p-6 shadow-[0_18px_50px_-38px_rgba(17,24,39,0.45)] backdrop-blur-md">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-4">Category budgets</p>
-          
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-ink/55 mb-4">
+            Category budgets
+          </p>
+
           <div className="space-y-3">
             {budgets.map((budget) => (
               <div key={budget.id} className="flex items-center gap-3">
@@ -180,11 +195,19 @@ export default function ManualBudgetPage() {
               {income > 0 ? Math.round((totalBudget / income) * 100) : 0}%
             </p>
           </div>
-          <div className={`rounded-lg border p-4 text-center ${remaining >= 0 ? 'border-accent/20 bg-accent/5' : 'border-rose-200 bg-rose-50'}`}>
-            <p className="text-xs font-medium" style={{ color: remaining >= 0 ? '#059669' : '#dc2626' }}>
+          <div
+            className={`rounded-lg border p-4 text-center ${remaining >= 0 ? "border-accent/20 bg-accent/5" : "border-rose-200 bg-rose-50"}`}
+          >
+            <p
+              className="text-xs font-medium"
+              style={{ color: remaining >= 0 ? "#059669" : "#dc2626" }}
+            >
               Remaining
             </p>
-            <p className="text-2xl font-bold mt-2" style={{ color: remaining >= 0 ? '#059669' : '#dc2626' }}>
+            <p
+              className="text-2xl font-bold mt-2"
+              style={{ color: remaining >= 0 ? "#059669" : "#dc2626" }}
+            >
               ₹{remaining.toLocaleString()}
             </p>
           </div>
@@ -200,7 +223,13 @@ export default function ManualBudgetPage() {
         </button>
 
         <p className="text-center text-xs text-ink/60">
-          You can adjust limits anytime in <Link href="/dashboard/settings" className="text-accent hover:underline">Settings</Link>
+          You can adjust limits anytime in{" "}
+          <Link
+            href="/dashboard/settings"
+            className="text-accent hover:underline"
+          >
+            Settings
+          </Link>
         </p>
       </div>
     </div>

@@ -1,76 +1,52 @@
 # Complyra
 
-Complyra is an intelligent compliance and finance operations workspace built with Next.js. It combines onboarding, policy controls, transaction analysis, investigations, and AI-assisted insights into a single dashboard for modern finance teams.
+A Next.js financial statement workspace with a public product website and verified-email access to private user records. Intended for INR statements and an India-based operator.
 
-## What this app does
+## Implemented
 
-- Shows a polished landing page with entry points into login and onboarding.
-- Provides a dashboard for compliance KPIs, charts, recent flags, and AI recommendations.
-- Includes dedicated experiences for chat, copilot, insights, integrations, investigator, policy, and policy builder workflows.
-- Exposes API routes for auth, onboarding, overview, policy rules, chat, copilot, integrations, and investigations.
-- Supports mock auth for local development and optional Supabase auth for real sessions.
+- Public home page with services, workflow, privacy/security overview, FAQs and account entry points.
+- Email verification **before account creation**, password recovery/change, memory-hard scrypt password hashing, opaque revocable sessions, origin checks, rate limits and server-side role checks. No demo-password login or user-selected administrator role.
+- Allow/block rules for email addresses and domains, and a separate admin panel for account access, aggregate operational analytics, security events and configuration status.
+- Private per-account data storage with development files or production PostgreSQL/Oracle adapters, authenticated AES-256-GCM encryption, database row locks, bind variables and stale-update checks. Existing mock records are not migrated into live accounts.
+- CSV/Excel imports with row/size limits, debit/credit tracking, confidence-aware category rules, duplicate/amount review prompts, transaction remarks, explicit category confirmation and optional remembered merchant rules.
+- A workspace-side assistant and optional OpenAI categorization suggestions. External AI processing is off until each user opts in. Unclear transactions still require human review.
+- In-app statement reminders 24 hours after signup/last import; opt-in email reminders through a secret-protected scheduler endpoint.
+- Actual profile saving, password controls, session revocation, data export, optional-processing preferences and account deletion.
+- India-oriented draft privacy, terms, cookies and acceptable-use pages with versioned acceptance. Production registration is gated on operator identity/contact and policy review.
+- CSP nonces, browser security headers, escaped exports, and a separate synthetic-data decoy service for an operator-managed isolated DMZ.
 
-## Tech stack
+## Local setup
 
-- Next.js 16 app router
-- React 19
-- Tailwind CSS v4
-- Supabase client for optional auth
-- XLSX helpers for data import and export workflows
+Use Node 22 or newer supported by the installed Next.js version.
 
-## Getting started
-
-1. Install dependencies.
-
-```bash
-npm install
-```
-
-2. Create your environment file from `.env.example` and fill in the values you need.
-
-3. Start the dev server.
-
-```bash
+```powershell
+npm ci
+Copy-Item .env.example .env.local
 npm run dev
 ```
 
-4. Open `http://localhost:3000`.
+Open `http://localhost:3000`. To test administrator controls, set your chosen address in `ADMIN_EMAILS` before registering it. Register at `/auth/register`, open the verification link from the local `.complyra/secure/mail-outbox` file, confirm verification, and sign in. Outbox mode does not send real email and cannot run in production. There are no default credentials.
 
-## Environment variables
+## Checks
 
-The app uses mock auth by default and can be switched to Supabase if configured.
+```powershell
+npm run lint
+npm run typecheck
+npm test
+npm run build
+npm audit --omit=dev
+```
 
-- `MOCK_AUTH_EMAIL` and `MOCK_AUTH_PASSWORD` control local demo login credentials.
-- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` enable Supabase auth.
-- `COMPLYRA_STORAGE_MODE` selects `json` or `sqlite` storage.
-- `OPENAI_API_KEY` enables ChatGPT-backed chat, copilot, compliance, and onboarding policy generation.
-- `OPENAI_MODEL` optionally overrides the default OpenAI model.
-- `SLACK_WEBHOOK_URL` enables Slack delivery.
-- `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, and `WHATSAPP_TO_NUMBER` enable WhatsApp delivery.
+The integration test starts its own local server and uses isolated synthetic records. Real PostgreSQL/Oracle, Resend/SMTP and AI smoke tests need your own staging credentials.
 
-When `OPENAI_API_KEY` is set, Complyra uses ChatGPT for its AI-generated answers and recommendations. If it is missing, the app falls back to local statement-driven heuristics so the UI still works.
+## Deployment
 
-## Key routes
+Read [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for GitHub Pages and Actions, Render API hosting, Neon PostgreSQL, Resend email, DNS/domain setup, encryption keys, admin bootstrap, hourly reminders, India launch requirements and limitations. GitHub Pages serves only the static frontend; the API still needs a Node.js host. Apply either [db/postgres.sql](db/postgres.sql) for Neon or [db/oracle.sql](db/oracle.sql) for Oracle to the dedicated application database.
 
-- `/` landing page
-- `/auth/login` login page
-- `/onboarding` onboarding flow
-- `/dashboard` executive overview
-- `/dashboard/chat` chat workspace
-- `/dashboard/copilot` AI copilot
-- `/dashboard/insights` analytics and findings
-- `/dashboard/integrations` connected systems
-- `/dashboard/investigator` investigation workspace
-- `/dashboard/policy` policy management
-- `/dashboard/policy-builder` policy authoring
+**External setup remains required:** no database or cloud network was provisioned; no live email or AI provider was connected; no scheduler was deployed. The legal operator and contact are undecided, so the legal pages remain drafts. Application code alone cannot establish legal compliance or guarantee protection after a compromise.
 
-## Repo layout
+The storage model is encrypted per-account documents, with a global security record suitable for this initial application, not a high-volume accounting ledger. Each account has its own workspace; shared organization membership is not implemented. Free-text policy rules are review drafts and are not automatically executed as regulatory controls. MFA is not implemented. PDF statement import is not supported. Maximum active statement: 2,000 rows / 5 MB. Only INR imports are supported; no silent currency conversion is applied.
 
-- `src/app` application routes, layouts, and API handlers
-- `src/components/app` dashboard UI components and widgets
-- `src/lib` business logic, storage, analytics, auth, and formatting helpers
-- `public` static assets
+## Main routes
 
-## Notes
-
-The repository also includes `.complyra/mock-db.json` for local mock data. If you are searching the repo, this README now reflects the real product instead of the default Next.js starter text.
+`/` | `/auth/register` | `/auth/verify` | `/auth/login` | `/auth/reset` | `/dashboard` | `/dashboard/upload` | `/dashboard/transactions` | `/dashboard/chat` | `/dashboard/settings` | `/admin` | `/legal/privacy`

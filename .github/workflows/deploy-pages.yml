@@ -1,0 +1,56 @@
+name: Deploy static frontend to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL || 'https://api.complyra.site' }}
+      PAGES_CUSTOM_DOMAIN: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Configure Pages base path
+        shell: bash
+        env:
+          PAGES_CUSTOM_DOMAIN: ${{ env.PAGES_CUSTOM_DOMAIN }}
+        run: |
+          repository="${GITHUB_REPOSITORY#*/}"
+          owner="${GITHUB_REPOSITORY%%/*}"
+          if [[ "$PAGES_CUSTOM_DOMAIN" == "true" || "$repository" == "$owner.github.io" ]]; then
+            echo "NEXT_PUBLIC_BASE_PATH=" >> "$GITHUB_ENV"
+          else
+            echo "NEXT_PUBLIC_BASE_PATH=/$repository" >> "$GITHUB_ENV"
+          fi
+      - run: npm ci
+      - run: npm run build:pages
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

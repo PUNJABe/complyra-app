@@ -1,0 +1,13 @@
+# Upload only application source and build configuration. In particular, do not
+# upload local statements, mail tokens, environment files, wallets or test data.
+/*
+!/src
+!/public
+!/package.json
+!/package-lock.json
+!/next.config.ts
+!/postcss.config.mjs
+!/tsconfig.json
+!/next-env.d.ts
+!/eslint.config.mjs
+!/vercel.json

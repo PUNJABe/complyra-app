@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { CopilotPayload } from "@/lib/types";
 import { useFormatMoney } from "@/lib/use-format-money";
+import { apiFetch } from "@/lib/api-client";
 
 export default function CopilotPage() {
   const [data, setData] = useState<CopilotPayload | null>(null);
@@ -15,7 +16,7 @@ export default function CopilotPage() {
   useEffect(() => {
     const run = async () => {
       try {
-        const response = await fetch("/api/copilot", { cache: "no-store" });
+        const response = await apiFetch("/api/copilot", { cache: "no-store" });
         if (!response.ok) throw new Error("Failed to load copilot insights.");
         setData((await response.json()) as CopilotPayload);
       } catch (requestError) {
@@ -35,7 +36,7 @@ export default function CopilotPage() {
     setError("");
 
     try {
-      const response = await fetch("/api/copilot/apply", {
+      const response = await apiFetch("/api/copilot/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recommendationId }),

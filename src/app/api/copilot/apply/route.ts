@@ -1,3 +1,4 @@
+import { apiAccessError } from "@/lib/api-access";
 import { NextResponse } from "next/server";
 
 import { getCopilotPayload } from "@/lib/analytics";
@@ -8,13 +9,19 @@ type ApplyBody = {
   recommendationId?: string;
 };
 
-function recommendationToRule(rec: { id: string; recommendation: string; action: string }): PolicyRule {
+function recommendationToRule(rec: {
+  id: string;
+  recommendation: string;
+  action: string;
+}): PolicyRule {
   const lower = rec.recommendation.toLowerCase();
 
   let condition = "If risk score exceeds team baseline";
-  if (lower.includes("travel")) condition = "If category is travel and amount > Rs 15,000";
+  if (lower.includes("travel"))
+    condition = "If category is travel and amount > Rs 15,000";
   if (lower.includes("meal") || lower.includes("mobility")) {
-    condition = "If category is meals or mobility and monthly spend grows > 15%";
+    condition =
+      "If category is meals or mobility and monthly spend grows > 15%";
   }
   if (lower.includes("duplicate")) {
     condition = "If same merchant and amount repeat within 24h";
@@ -30,17 +37,27 @@ function recommendationToRule(rec: { id: string; recommendation: string; action:
 }
 
 export async function POST(request: Request) {
+  const accessError = await apiAccessError("POST");
+  if (accessError) return accessError;
   const body = (await request.json()) as ApplyBody;
 
   if (!body.recommendationId) {
-    return NextResponse.json({ error: "recommendationId is required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "recommendationId is required." },
+      { status: 400 },
+    );
   }
 
   const payload = await getCopilotPayload();
-  const rec = payload.recommendations.find((item) => item.id === body.recommendationId);
+  const rec = payload.recommendations.find(
+    (item) => item.id === body.recommendationId,
+  );
 
   if (!rec) {
-    return NextResponse.json({ error: "Recommendation not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Recommendation not found." },
+      { status: 404 },
+    );
   }
 
   const rule = recommendationToRule(rec);
@@ -48,7 +65,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
-    message: `Applied recommendation and created policy rule: ${rule.name}`,
+    message: `Saved recommendation as a draft policy rule: ${rule.name}`,
     rule,
   });
 }
