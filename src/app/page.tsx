@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 
 const services = [
   {
@@ -70,9 +71,12 @@ export default function Home() {
           <a href="#security">Security</a>
           <Link href="/auth/login">Sign in</Link>
         </nav>
-        <Link href="/auth/register" className="button button-small">
-          Get started <ArrowUpRight size={16} />
-        </Link>
+        <div className="site-actions">
+          <ThemeToggle />
+          <Link href="/auth/register" className="button button-small">
+            Get started <ArrowUpRight size={16} />
+          </Link>
+        </div>
       </header>
       <main id="main">
         <section className="hero wrap">

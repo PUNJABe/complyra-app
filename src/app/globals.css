@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 .marketing {
   background: #f8faf7;
@@ -45,6 +46,11 @@
   align-items: center;
   font-size: 13px;
   font-weight: 500;
+}
+.site-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .marketing .button {
   display: inline-flex;
@@ -599,6 +605,99 @@
   outline: 3px solid #84a669;
   outline-offset: 5px;
 }
+.dark .marketing {
+  background: #0e1712;
+  color: #e4ede6;
+  color-scheme: dark;
+}
+.dark .marketing .site-nav,
+.dark .marketing .faq-section {
+  border-color: #293a30;
+}
+.dark .marketing .brand-icon,
+.dark .marketing .preview-logo {
+  background: #315d49;
+}
+.dark .marketing .hero-description,
+.dark .marketing .hero-note,
+.dark .marketing .section-heading > p,
+.dark .marketing .preview-heading p,
+.dark .marketing .preview-metrics span,
+.dark .marketing .preview-metrics small,
+.dark .marketing .preview-transaction p,
+.dark .marketing .preview-float small,
+.dark .marketing .service-card > p:last-child,
+.dark .marketing .workflow-grid p,
+.dark .marketing .section-description,
+.dark .marketing .faq-list details p,
+.dark .marketing .site-footer p,
+.dark .marketing .site-footer > span {
+  color: #a4b4a8;
+}
+.dark .marketing .product-preview,
+.dark .marketing .preview-float,
+.dark .marketing .service-card,
+.dark .marketing .preview-metrics > div,
+.dark .marketing .preview-chart,
+.dark .marketing .security-pills span {
+  background: #17231b;
+  border-color: #304337;
+  color: #e4ede6;
+}
+.dark .marketing .preview-top,
+.dark .marketing .preview-metrics > div,
+.dark .marketing .preview-chart {
+  border-color: #304337;
+}
+.dark .marketing .preview-period,
+.dark .marketing .faq-list details {
+  border-color: #304337;
+}
+.dark .marketing .bars {
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent 29px,
+    #293a30 30px
+  );
+}
+.dark .marketing .bars small {
+  background: #17231b;
+  color: #a4b4a8;
+}
+.dark .marketing .value-strip,
+.dark .marketing .workflow {
+  background: #131e17;
+  border-color: #293a30;
+}
+.dark .marketing .value-strip p,
+.dark .marketing .security-list {
+  color: #c1d0c4;
+}
+.dark .marketing .security-visual {
+  background: radial-gradient(ellipse at center, #202f23, #141f18 65%);
+  border-color: #304337;
+}
+.dark .marketing .shield-orbit {
+  border-color: #40563d;
+  box-shadow:
+    0 0 0 20px #1a291d,
+    0 0 0 21px #293a30;
+  color: #a9c588;
+}
+.dark .marketing .security-pills span {
+  background: #1a291d;
+}
+.dark .marketing .cta-section {
+  background: #1d4031;
+}
+.dark .marketing .button-light {
+  background: #dce8c0;
+  color: #19342e;
+}
+.dark .marketing .site-footer .wordmark {
+  color: #e4ede6;
+}
 @media (max-width: 900px) {
   .hero {
     gap: 35px;
@@ -643,6 +742,9 @@
   .marketing .button-small {
     font-size: 11px;
     padding: 11px 13px;
+  }
+  .site-actions {
+    gap: 8px;
   }
   .hero {
     grid-template-columns: 1fr;

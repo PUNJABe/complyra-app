@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  Eye,
+  EyeOff,
   Layers3,
   LockKeyhole,
   Mail,
@@ -27,6 +29,7 @@ export function LoginScreen({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [acceptPolicies, setAcceptPolicies] = useState(false);
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
@@ -163,26 +166,40 @@ export function LoginScreen({
           {(mode === "login" ||
             mode === "register" ||
             (mode === "reset" && token)) && (
-            <label className="block text-sm">
-              {mode === "reset" ? "New password" : "Password"}
-              <input
-                type="password"
-                autoComplete={
-                  mode === "login" ? "current-password" : "new-password"
-                }
-                className="mt-2 w-full rounded-xl border border-ink/20 bg-canvas p-3"
-                minLength={mode === "login" ? 1 : 12}
-                maxLength={128}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-              />
+            <div className="block text-sm">
+              <label htmlFor="auth-password">
+                {mode === "reset" ? "New password" : "Password"}
+              </label>
+              <div className="relative mt-2">
+                <input
+                  id="auth-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={
+                    mode === "login" ? "current-password" : "new-password"
+                  }
+                  className="w-full rounded-xl border border-ink/20 bg-canvas p-3 pr-12"
+                  minLength={mode === "login" ? 1 : 12}
+                  maxLength={128}
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1 text-ink/60 hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-pressed={showPassword}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               {mode !== "login" && (
                 <span className="mt-2 block text-xs text-ink/50">
                   12-128 characters. A unique passphrase works well.
                 </span>
               )}
-            </label>
+            </div>
           )}
           {mode === "register" && (
             <label className="flex items-start gap-3 text-xs leading-6 text-ink/65">
