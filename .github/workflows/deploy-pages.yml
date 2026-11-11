@@ -20,6 +20,8 @@ jobs:
     env:
       NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL || 'https://api.complyra.site' }}
       PAGES_CUSTOM_DOMAIN: "true"
+      PRIVACY_CONTACT_EMAIL: complyra.co@gmail.com
+      LEGAL_POLICIES_APPROVED: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

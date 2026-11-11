@@ -12,7 +12,7 @@ A Next.js financial statement workspace with a public product website and verifi
 - A workspace-side assistant and optional OpenAI categorization suggestions. External AI processing is off until each user opts in. Unclear transactions still require human review.
 - In-app statement reminders 24 hours after signup/last import; opt-in email reminders through a secret-protected scheduler endpoint.
 - Actual profile saving, password controls, session revocation, data export, optional-processing preferences and account deletion.
-- India-oriented draft privacy, terms, cookies and acceptable-use pages with versioned acceptance. Production registration is gated on operator identity/contact and policy review.
+- India-oriented privacy, terms, cookies and acceptable-use notices with versioned acceptance. Production registration requires a published contact and operator approval; the notices are not a legal-compliance certification.
 - CSP nonces, browser security headers, escaped exports, and a separate synthetic-data decoy service for an operator-managed isolated DMZ.
 
 ## Local setup
@@ -43,7 +43,7 @@ The integration test starts its own local server and uses isolated synthetic rec
 
 Read [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for GitHub Pages and Actions, Render API hosting, Neon PostgreSQL, Resend email, DNS/domain setup, encryption keys, admin bootstrap, hourly reminders, India launch requirements and limitations. GitHub Pages serves only the static frontend; the API still needs a Node.js host. Apply either [db/postgres.sql](db/postgres.sql) for Neon or [db/oracle.sql](db/oracle.sql) for Oracle to the dedicated application database.
 
-**External setup remains required:** no database or cloud network was provisioned; no live email or AI provider was connected; no scheduler was deployed. The legal operator and contact are undecided, so the legal pages remain drafts. Application code alone cannot establish legal compliance or guarantee protection after a compromise.
+**Current hosting:** GitHub Pages serves the frontend, Render runs the API, Neon PostgreSQL stores encrypted application data, and Resend sends verification and password-reset email. Public legal pages use the Complyra service name and `complyra.co@gmail.com` contact. Provider credentials and operational settings are managed in provider dashboards; see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The published notices describe the current intended service practices but are not legal advice or a compliance certification. Application code alone cannot guarantee protection after a compromise.
 
 The storage model is encrypted per-account documents, with a global security record suitable for this initial application, not a high-volume accounting ledger. Each account has its own workspace; shared organization membership is not implemented. Free-text policy rules are review drafts and are not automatically executed as regulatory controls. MFA is not implemented. PDF statement import is not supported. Maximum active statement: 2,000 rows / 5 MB. Only INR imports are supported; no silent currency conversion is applied.
 

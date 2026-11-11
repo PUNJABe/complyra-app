@@ -8,36 +8,36 @@ const documents: Record<
     title: "Privacy notice",
     sections: [
       [
-        "Who this notice covers",
-        "Complyra is a financial record organization and review service intended for adults in India. The service operator’s identity and privacy contact appear below. This notice describes the implemented product controls; it is a draft until the operator completes and approves it.",
+        "Who operates Complyra",
+        "Complyra is the public name of this service. These notices do not identify whether a separate legal entity operates it. The service operator can be contacted at the privacy and grievances address shown above. This service is intended for adults and is designed around INR-denominated financial records.",
       ],
       [
         "Information we process",
-        "We process your name, verified email, a salted password hash, session metadata, policy acceptance version, preferences, and the financial records you choose to upload. These records may contain merchant descriptions, transaction dates, amounts and your remarks. Security events record account activity and account identifiers. Never upload passwords, card security codes, or records you are not authorized to share.",
+        "We process your name and email address, a salted password hash (not your password), email-verification and password-reset tokens, session and security events, the version and time of your policy acceptance, account preferences, and the transaction records you choose to import. Transaction data can include dates, amounts, merchant descriptions, categories and your remarks. The service does not need your bank password, card security code, or online-banking credentials; do not upload them or records you are not authorized to share.",
       ],
       [
-        "Purpose and choices",
-        "We use these records to operate your private workspace, classify and review transactions, provide reports, verify access, prevent abuse, and send requested operational emails. External AI and statement reminder emails are off by default and can be enabled or withdrawn separately in Settings. Withdrawal stops future requests; it does not undo processing that has already occurred.",
+        "How information is used",
+        "We use account and transaction information to provide your private workspace, import and organize records, generate reports, authenticate users, protect the service, and send verification or password-reset emails you request. External AI assistance and statement reminder emails are off by default and have separate controls in Settings. Turning either off stops future optional processing or reminders; it cannot undo processing already completed.",
       ],
       [
-        "Processors and international processing",
-        "The deployed service may use Oracle Cloud for storage and an SMTP provider for email. When you enable external AI, summaries, merchant narrations, and your assistant questions can be sent to OpenAI. Long number sequences in categorization requests are redacted, but free text can still contain personal information. Provider location, cross-border safeguards, processor terms and applicable retention settings must be documented by the operator before launch. Do not include unnecessary sensitive information in remarks or questions.",
+        "Service providers and processing locations",
+        "GitHub Pages serves the static website, Render hosts the API in Singapore, Neon hosts the encrypted application database in the United States (US East), and Resend sends verification and password-reset emails. These providers may process technical request data to deliver and secure their services and are subject to their own terms and privacy notices. When you explicitly enable external AI assistance, the relevant statement summary, merchant narration, or assistant message is sent to OpenAI to produce the requested response. Long number sequences in some categorization requests are redacted, but free-text remarks and questions can still contain personal information. Do not include unnecessary sensitive details. Provider infrastructure or support may involve other locations; information may therefore be processed outside your country, subject to applicable law.",
       ],
       [
         "Retention and deletion",
-        "Active account records remain until you delete the account or the operator applies a documented lawful retention requirement. New statement imports replace the active statement. Original uploaded files are processed in memory and are not retained by this application. Workspace audit history is capped at 300 entries, security history at 500 events, and expired verification/reset tokens are pruned during security updates. Account deletion removes the live workspace and account, revokes sessions, and anonymizes the account identity in the retained security event history. Hosting logs, processor copies and backups follow operator-managed retention, which must be published before launch.",
+        "Imported transaction records and account data remain in the active service until you delete your account or deletion is otherwise required by law. A new statement import replaces the active statement. The original CSV or Excel file is processed in memory and is not retained by the application; the extracted records are saved to your workspace. Verification and reset links expire after 30 minutes. Sessions expire after 30 minutes of inactivity and no later than seven days after creation. Account deletion removes the live account and workspace, revokes sessions and pending tokens, and replaces the account email in existing security events with a deleted-account label. Provider logs and backups may persist under the providers' own retention schedules and are not immediately removed by this application.",
       ],
       [
-        "Your controls and requests",
-        "You can edit your display name, download your profile and workspace data, change your password, revoke sessions, withdraw optional AI/email choices, and delete your account in Settings. Contact the published privacy contact for email corrections, access, erasure, grievances, or other rights available under applicable Indian law. The operator must verify the requester’s identity and respond within the applicable statutory period.",
+        "Your choices and privacy requests",
+        "In Settings you can update your display name, export your profile and workspace data, change your password, revoke sessions, turn off optional AI or reminder email, and delete your account. You may also contact the address above to request access, correction, erasure, or help with a grievance. We may ask for information needed to verify that a request is yours and will handle it under applicable law.",
       ],
       [
         "Security and incidents",
-        "The application uses verified email activation, memory-hard password hashing, revocable server-side sessions, account access rules and isolated workspace records. Production storage requires authenticated encryption and Oracle. No system can promise absolute security. The operator is responsible for access reviews, backups, incident response and legally required notifications.",
+        "Passwords are processed using salted scrypt hashes. Application records are encrypted with AES-256-GCM before being stored, and production connections use HTTPS/TLS. Accounts require email verification; sessions can be revoked and workspace records are separated by account. No system can promise absolute security. If a security incident affects your information, the operator will take steps required by applicable law.",
       ],
       [
-        "Children and changes",
-        "This service is intended for users aged 18 and over. Do not provide children’s records without appropriate legal authority. Material changes to processing require an updated notice and any legally required renewed consent; the operator must maintain this notice as the service changes.",
+        "Children and notice changes",
+        "The service is for people aged 18 and over. Do not submit a child's personal information. We will update this notice when our data practices materially change and obtain any renewed consent required by law. The policy version and effective date appear above.",
       ],
     ],
   },
@@ -46,31 +46,31 @@ const documents: Record<
     sections: [
       [
         "Operator and eligibility",
-        "These terms govern use of Complyra by adults aged 18 or over. The legal operator must be identified below before production registration opens. By registering, you confirm that the information you provide is accurate, that you control the verified email address, and that you have authority to provide uploaded records.",
+        "Complyra is the public service name; these terms do not identify whether a separate legal entity operates it. The service operator's contact address is shown above. These terms apply to adults aged 18 or over. By registering, you confirm that your details are accurate, that you control the email address you verify, and that you have authority to provide uploaded records.",
       ],
       [
         "Your account and records",
-        "Protect your password and use a unique passphrase. You remain responsible for checking uploaded data and confirming transaction remarks, classifications and decisions. Accounts may be restricted for abuse, compromised access, or violations of these terms. Access rules may limit which accounts can register or sign in.",
+        "Keep your password private and use a unique passphrase. Your account becomes active only after email verification. You are responsible for the accuracy and lawful use of your records and for reviewing transaction categories, remarks and other output. The operator may suspend access to protect accounts, address abuse, or comply with law.",
       ],
       [
         "Scope of the service",
-        "Complyra organizes uploaded INR statements and provides informational analytics, review prompts and optional AI assistance. It does not hold or move money, connect directly to bank accounts, file statutory returns, act as a regulated financial adviser, or certify legal or tax compliance. Consult a qualified professional when necessary. Automated findings are indicators requiring review, and AI output may be inaccurate.",
+        "Complyra organizes INR-denominated CSV and Excel statements and provides informational analytics, review prompts and optional AI assistance. It does not connect to your bank, hold or move money, file statutory returns, or provide regulated financial, investment, tax or legal advice. Reports and automated classifications can be incomplete or wrong; review them against your source records and consult a qualified professional where needed. AI assistance is optional and may produce inaccurate output.",
       ],
       [
         "Permitted use and ownership",
-        "You retain rights to your uploaded records and grant the operator permission to process them to provide the requested service, subject to the privacy notice. Do not use the service for unauthorized access, fraud, harassment, unlawful surveillance, malicious uploads, or rights infringement. See the acceptable use policy.",
+        "You retain your rights to uploaded records. You give the operator a limited permission to receive, store, process and display those records only as needed to provide, secure and support the service described in the privacy notice. You must not use Complyra for unauthorized access, fraud, harassment, unlawful surveillance, malicious uploads, or infringement of another person's rights. The acceptable use policy also applies.",
       ],
       [
         "Availability and changes",
-        "Availability depends on the operator’s infrastructure and configured providers. Export important records and retain original statements. Material changes, paid features, and new processing purposes require appropriate notice and additional terms or consent where required. No subscription or payment commitment is created by these draft terms.",
+        "The service depends on third-party hosting and email providers and may be interrupted, changed, or discontinued. Keep your original statements and export important records. We will publish material changes to these terms and obtain additional consent where required by law. No payment obligation is created by these terms.",
       ],
       [
         "Closing your account",
-        "You can export records and delete your account from Settings after confirming your password. The operator must handle any lawful retention, complaints and outstanding obligations according to the privacy notice and applicable law.",
+        "You can export your records and delete your account from Settings after confirming your password. Account deletion removes active account and workspace data as described in the privacy notice; provider logs and backups may remain under their own retention schedules. Terms that by their nature need to continue, and any mandatory legal obligations, remain in effect.",
       ],
       [
-        "Applicable law and grievances",
-        "The intended operating jurisdiction is India. Mandatory consumer and data protection rights remain available. Contact the published operator contact for complaints or grievances. These draft terms do not select a court, impose arbitration, or limit statutory remedies; final dispute and commercial terms require operator and legal review.",
+        "Disclaimers and grievances",
+        "To the extent permitted by applicable law, Complyra is provided without a promise of uninterrupted availability or error-free output. Nothing in these terms excludes liability or limits consumer, privacy, or other rights that cannot lawfully be excluded. For questions or complaints, contact the address above. These terms do not require arbitration or waive any statutory remedy.",
       ],
     ],
   },
@@ -127,7 +127,7 @@ export default async function LegalPage({
   const entity = process.env.LEGAL_ENTITY_NAME;
   const contact = process.env.PRIVACY_CONTACT_EMAIL;
   const approved = Boolean(
-    entity && contact && process.env.LEGAL_POLICIES_APPROVED === "true",
+    contact && process.env.LEGAL_POLICIES_APPROVED === "true",
   );
   return (
     <main className="mx-auto w-full max-w-3xl px-6 py-12">
@@ -135,7 +135,7 @@ export default async function LegalPage({
         ← Complyra
       </Link>
       <p className="mt-10 text-xs uppercase tracking-widest text-ink/50">
-        India · Policy version 2026-11-04
+        India · Policy version 2026-11-12
       </p>
       <h1 className="mt-3 text-4xl font-medium tracking-tight">
         {content.title}
@@ -145,14 +145,14 @@ export default async function LegalPage({
           role="note"
           className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-7 text-amber-700"
         >
-          Draft for operator and legal review. Business identity, contact,
-          provider details and retention arrangements are not yet finalized.
-          Production registration remains closed until the operator completes
-          and approves these policies.
+          Draft for operator and legal review. Publish a working privacy
+          contact, confirm these notices describe current service practices,
+          and approve them before opening registration.
         </p>
       )}
       <div className="my-7 rounded-xl border border-ink/15 p-4 text-sm leading-7">
-        <p>Operator: {entity || "Not yet specified"}</p>
+        <p>Public service name: Complyra</p>
+        {entity && <p>Legal entity: {entity}</p>}
         <p>
           Privacy and grievances:{" "}
           {contact ? (
@@ -171,16 +171,15 @@ export default async function LegalPage({
         </section>
       ))}
       <p className="mt-10 text-xs leading-7 text-ink/50">
-        Indian data protection obligations have phased effective dates. The
-        operator must confirm which provisions apply to its deployment and
-        processing activities.{" "}
+        These notices describe current Complyra service practices and do not
+        limit rights available under applicable law. See the{" "}
         <a
           className="underline"
           href="https://www.meity.gov.in/documents/act-and-policies/digital-personal-data-protection-rules-2025-gDOxUjMtQWa"
         >
-          Official MeitY DPDP Rules
+          official MeitY Digital Personal Data Protection Rules
         </a>
-        .
+        , and contact the operator for privacy requests or grievances.
       </p>
       <nav className="mt-9 flex flex-wrap gap-5 border-t border-ink/10 pt-6 text-xs">
         {Object.entries(documents).map(([key, value]) => (

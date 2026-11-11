@@ -34,14 +34,13 @@ export async function POST(request: Request) {
       );
     if (
       process.env.NODE_ENV === "production" &&
-      (!process.env.LEGAL_ENTITY_NAME ||
-        !process.env.PRIVACY_CONTACT_EMAIL ||
+      (!process.env.PRIVACY_CONTACT_EMAIL ||
         process.env.LEGAL_POLICIES_APPROVED !== "true")
     )
       return NextResponse.json(
         {
           error:
-            "Registration will open after the operator publishes its reviewed policies and contact details.",
+            "Registration is temporarily unavailable while the published policies and contact details are configured.",
         },
         { status: 503 },
       );

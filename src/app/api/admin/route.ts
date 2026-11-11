@@ -72,7 +72,6 @@ export async function GET() {
       email: Boolean(process.env.SMTP_HOST),
       ai: Boolean(process.env.OPENAI_API_KEY),
       policiesReady: Boolean(
-        process.env.LEGAL_ENTITY_NAME &&
         process.env.PRIVACY_CONTACT_EMAIL &&
         process.env.LEGAL_POLICIES_APPROVED === "true",
       ),

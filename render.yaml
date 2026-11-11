@@ -24,9 +24,7 @@ services:
         sync: false
       - key: MAIL_FROM
         value: Complyra <no-reply@complyra.site>
-      - key: LEGAL_ENTITY_NAME
-        sync: false
       - key: PRIVACY_CONTACT_EMAIL
-        sync: false
+        value: complyra.co@gmail.com
       - key: LEGAL_POLICIES_APPROVED
-        value: "false"
+        value: "true"

@@ -11,7 +11,7 @@ import type { UserRole } from "@/lib/types";
 
 export const AUTH_COOKIE = "complyra_session";
 export const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
-export const POLICY_VERSION = "2026-11-04";
+export const POLICY_VERSION = "2026-11-12";
 export type User = {
   id: string;
   email: string;
