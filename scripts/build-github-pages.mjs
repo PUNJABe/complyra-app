@@ -35,7 +35,6 @@ try {
   for (const file of [
     "package.json",
     "next.config.ts",
-    "next-env.d.ts",
     "postcss.config.mjs",
     "tsconfig.json",
   ]) {
