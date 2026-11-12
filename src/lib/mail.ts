@@ -25,6 +25,7 @@ export function appUrl() {
   return url.replace(/\/+$/, "");
 }
 export async function sendMail(to: string, subject: string, text: string) {
+  const replyTo = process.env.PRIVACY_CONTACT_EMAIL;
   if (
     process.env.MAIL_MODE === "outbox" &&
     process.env.NODE_ENV !== "production"
@@ -51,7 +52,13 @@ export async function sendMail(to: string, subject: string, text: string) {
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from: process.env.MAIL_FROM, to, subject, text }),
+      body: JSON.stringify({
+        from: process.env.MAIL_FROM,
+        ...(replyTo ? { reply_to: replyTo } : {}),
+        to,
+        subject,
+        text,
+      }),
     });
     if (!response.ok)
       throw new Error(`Resend email delivery failed (${response.status}).`);
@@ -73,5 +80,11 @@ export async function sendMail(to: string, subject: string, text: string) {
     socketTimeout: 15000,
     auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
   });
-  await transport.sendMail({ from: process.env.MAIL_FROM, to, subject, text });
+  await transport.sendMail({
+    from: process.env.MAIL_FROM,
+    ...(replyTo ? { replyTo } : {}),
+    to,
+    subject,
+    text,
+  });
 }
